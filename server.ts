@@ -213,6 +213,29 @@ Silnik operuje deterministycznie na dyskretnej siatce 248 wektorów algebry E8. 
     }
   });
 
+  // ESMFold (Meta) - prawdziwa predykcja struktury z sekwencji
+  app.post('/api/esmfold', async (req, res) => {
+    const seq = String(req.body?.sequence || '').toUpperCase().replace(/[^A-Z]/g, '');
+    if (seq.length < 10 || seq.length > 400 || /[^ACDEFGHIKLMNPQRSTVWY]/.test(seq)) {
+      return res.status(400).json({ error: 'Sekwencja: 10-400 standardowych aminokwasow' });
+    }
+    try {
+      const r = await fetch('https://api.esmatlas.com/foldSequence/v1/pdb/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: seq,
+        signal: AbortSignal.timeout(120000)
+      });
+      const pdb = await r.text();
+      if (!r.ok || !pdb.includes('ATOM')) {
+        return res.status(502).json({ error: `ESMFold HTTP ${r.status}` });
+      }
+      res.json({ pdb });
+    } catch (err: any) {
+      res.status(502).json({ error: `ESMFold niedostepny: ${err.message}` });
+    }
+  });
+
   // Health check endpoints for Cloud Run
   app.get(['/healthz', '/api/health'], (_req, res) => {
     res.status(200).json({ status: 'ok', engine: 'SNAPLOCK E8' });

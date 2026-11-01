@@ -44,6 +44,7 @@ import { SnaplockBenchmarkModal } from './components/SnaplockBenchmarkModal';
 import { SnaplockGroundTruthLoopPanel } from './components/SnaplockGroundTruthLoopPanel';
 import { SnaplockRibosomeLinearizationScannerView } from './components/SnaplockRibosomeLinearizationScannerView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { EsmFoldPanel } from './components/EsmFoldPanel';
 import {
   GLOBAL_PROTEIN_TARGETS,
   GLOBAL_TARGET_ORDER,
@@ -51,7 +52,7 @@ import {
   matchSequenceToGlobalTarget
 } from './snaplockGlobalTargets';
 
-type ChromeTabId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+type ChromeTabId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
 
 export default function App() {
   // --- TOP CHROME TABS STATE (ZERO DELETED FEATURES + DEDICATED NEW TABS E..H) ---
@@ -564,6 +565,20 @@ export default function App() {
             <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
             <span>H: Rybosom &amp; Skaner Płyty</span>
           </button>
+
+          {/* TAB I: Prawdziwa predykcja ESMFold + walidacja */}
+          <button
+            onClick={() => setActiveTab('I')}
+            className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
+              activeTab === 'I'
+                ? 'bg-[#020205] border-emerald-500/60 border-b-transparent text-white shadow-xl ring-1 ring-emerald-500/30'
+                : 'bg-[#101222]/80 border-transparent text-zinc-400 hover:text-white hover:bg-[#17192f]'
+            }`}
+            title="Karta I: Predykcja struktury ESMFold (Meta) oceniona walidatorem SNAPLOCK"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>I: ESMFold</span>
+          </button>
         </div>
 
         {/* Right side: Restored Utility Modals (Bioinformatics, Benchmark, Synth Piano) + Chatbot */}
@@ -831,6 +846,19 @@ export default function App() {
             <SnaplockRibosomeLinearizationScannerView
               activeTarget={activeTarget}
               activeSequence={seqInput}
+            />
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {activeTab === 'I' && (
+        <div className="flex-1 w-full h-full min-h-0 overflow-hidden flex flex-col bg-[#020205]">
+          <ErrorBoundary fallbackTitle="Błąd modułu ESMFold">
+            <EsmFoldPanel
+              activeSequence={seqInput}
+              referencePdbText={activeGlobalSpec?.referencePdbText ?? null}
+              referenceChainId={activeGlobalSpec?.pdbChainId}
+              referenceLabel={activeGlobalSpec?.pdbReferenceId}
             />
           </ErrorBoundary>
         </div>
