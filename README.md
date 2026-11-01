@@ -54,3 +54,19 @@ Same targets, same Kabsch / TM-score code (`tests/esmfold_benchmark.ts`, raw PDB
 - ESMFold confidence (pLDDT) tracks real error: the one miss (crambin) is flagged by pLDDT ~50.
 - Isolated insulin chains score low on TM: in vivo A and B fold together via disulfide bonds; single-chain input lacks the partner.
 - Conclusion: SNAPLOCK's value is the **validation/visualisation layer**; prediction should come from established models.
+
+## ESMFold in the same harness (Nov 2026)
+Same targets, same Kabsch / TM-score code (`tests/esmfold_benchmark.ts`, raw PDBs in `results/esmfold/`).
+
+| Target | ESMFold Ca RMSD | SNAPLOCK M5 | ESMFold TM-score | mean pLDDT |
+|---|---|---|---|---|
+| **Lysozyme 1LYZ, 129 aa (TEST)** | **0.55 A** | 27.4 A | **0.983** | 95.1 |
+| Ubiquitin 1UBQ, 76 aa (VALIDATION) | **0.83 A** | 23.3 A | 0.954 | 90.5 |
+| Insulin B, 30 aa (TEST) | 2.30 A | 11.6 A | 0.459 | 77.9 |
+| Insulin A, 21 aa (TRAIN) | 0.87 A | 5.8 A | 0.330 | 85.7 |
+| Crambin 1CRN, 46 aa (TRAIN) | 7.86 A | - | 0.138 | 50.3 |
+
+- The harness reproduces near-atomic accuracy for a state-of-the-art predictor, which **validates the harness itself**.
+- ESMFold confidence (pLDDT) tracks real error: the one miss (crambin) is flagged by pLDDT ~50.
+- Isolated insulin chains score low on TM: in vivo A and B fold together via disulfide bonds; single-chain input lacks the partner.
+- Conclusion: SNAPLOCK's value is the **validation/visualisation layer**; prediction should come from established models.
