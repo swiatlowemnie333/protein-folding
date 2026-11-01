@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: #0d0d11;
+  color: #f3f4f6;
+  font-family: var(--font-sans);
+}
+
+@keyframes molecularVibration {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+    opacity: 0.95;
+  }
+  25% {
+    transform: translate(0.35px, -0.35px) scale(1.006);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-0.35px, 0.25px) scale(0.995);
+    opacity: 0.88;
+  }
+  75% {
+    transform: translate(0.2px, 0.35px) scale(1.004);
+    opacity: 0.98;
+  }
+}
+
+@keyframes bondPulse {
+  0%, 100% {
+    stroke-opacity: 0.75;
+    stroke-width: 3.5px;
+  }
+  50% {
+    stroke-opacity: 0.95;
+    stroke-width: 3.8px;
+  }
+}
+
+.animate-molecular-vibration {
+  animation: molecularVibration 2.8s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+.animate-bond-pulse {
+  animation: bondPulse 2.4s ease-in-out infinite;
+}
+

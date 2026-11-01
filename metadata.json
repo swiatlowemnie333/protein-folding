@@ -1,0 +1,6 @@
+{
+  "name": "Zwijanie Białek",
+  "description": "Deterministyczny silnik SNAPLOCK (algebra E8, 248 wektorów): wizualizacja pierwszoosobowa SkyMap 360° ze środka masy aminokwasu oraz forward kinematics składania łańcucha białkowego.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
