@@ -1,0 +1,32 @@
+[
+  {
+    "cel": "1CRN:A TRAIN 46aa",
+    "rmsd": "7.86",
+    "tm": "0.138",
+    "plddt": "50.3"
+  },
+  {
+    "cel": "3I40:A TRAIN 21aa",
+    "rmsd": "0.87",
+    "tm": "0.330",
+    "plddt": "85.7"
+  },
+  {
+    "cel": "1UBQ:A VALIDATION 76aa",
+    "rmsd": "0.83",
+    "tm": "0.954",
+    "plddt": "90.5"
+  },
+  {
+    "cel": "1LYZ:A TEST 129aa",
+    "rmsd": "0.55",
+    "tm": "0.983",
+    "plddt": "95.1"
+  },
+  {
+    "cel": "3I40:B TEST 30aa",
+    "rmsd": "2.30",
+    "tm": "0.459",
+    "plddt": "77.9"
+  }
+]
