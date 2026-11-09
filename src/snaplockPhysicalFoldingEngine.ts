@@ -352,7 +352,7 @@ export function buildBackboneFromTorsionsNeRF(
       i === 0
         ? [0.0, 0.0, 0.0]
         : placeAtomExactNeRF(
-            i === 1 ? virtCPrev : residues[i - 2].C,
+            residues[i - 1].N, // FIX: psi_{i-1} = dihedral(N_{i-1}, CA_{i-1}, C_{i-1}, N_i)
             prevCA,
             prevC,
             b_C_N,

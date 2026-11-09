@@ -24,6 +24,17 @@ import {
   parsePdbForGroundTruth,
   validateAgainstGroundTruth
 } from './ground_truth_validation';
+// Miyazawa & Jernigan (1996) J Mol Biol 256:623-644, Table 3, e_ij (upper half + diagonal), RT units
+const MJ96_CODES = ['CYS','MET','PHE','ILE','LEU','VAL','TRP','TYR','ALA','GLY','THR','SER','ASN','GLN','ASP','GLU','HIS','ARG','LYS','PRO'];
+const MJ96_UPPER = '-5.44 -4.99 -5.8 -5.5 -5.83 -4.96 -4.95 -4.16 -3.57 -3.16 -3.11 -2.86 -2.59 -2.85 -2.41 -2.27 -3.6 -2.57 -1.95 -3.07|-5.46 -6.56 -6.02 -6.41 -5.32 -5.55 -4.91 -3.94 -3.39 -3.51 -3.03 -2.95 -3.3 -2.57 -2.89 -3.98 -3.12 -2.48 -3.45|-7.26 -6.84 -7.28 -6.29 -6.16 -5.66 -4.81 -4.13 -4.28 -4.02 -3.75 -4.1 -3.48 -3.56 -4.77 -3.98 -3.36 -4.25|-6.54 -7.04 -6.05 -5.78 -5.25 -4.58 -3.78 -4.03 -3.52 -3.24 -3.67 -3.17 -3.27 -4.14 -3.63 -3.01 -3.76|-7.37 -6.48 -6.14 -5.67 -4.91 -4.16 -4.34 -3.92 -3.74 -4.04 -3.4 -3.59 -4.54 -4.03 -3.37 -4.2|-5.52 -5.18 -4.62 -4.04 -3.38 -3.46 -3.05 -2.83 -3.07 -2.48 -2.67 -3.58 -3.07 -2.49 -3.32|-5.06 -4.66 -3.82 -3.42 -3.22 -2.99 -3.07 -3.11 -2.84 -2.99 -3.98 -3.41 -2.69 -3.73|-4.17 -3.36 -3.01 -3.01 -2.78 -2.76 -2.97 -2.76 -2.79 -3.52 -3.16 -2.6 -3.19|-2.72 -2.31 -2.32 -2.01 -1.84 -1.89 -1.7 -1.51 -2.41 -1.83 -1.31 -2.03|-2.24 -2.08 -1.82 -1.74 -1.66 -1.59 -1.22 -2.15 -1.72 -1.15 -1.87|-2.12 -1.96 -1.88 -1.9 -1.8 -1.74 -2.42 -1.9 -1.31 -1.9|-1.67 -1.58 -1.49 -1.63 -1.48 -2.11 -1.62 -1.05 -1.57|-1.68 -1.71 -1.68 -1.51 -2.08 -1.64 -1.21 -1.53|-1.54 -1.46 -1.42 -1.98 -1.8 -1.29 -1.73|-1.21 -1.02 -2.32 -2.29 -1.68 -1.33|-0.91 -2.15 -2.27 -1.8 -1.26|-3.05 -2.16 -1.35 -2.25|-1.55 -0.59 -1.7|-0.12 -0.97|-1.75';
+const MJ96_EIJ: Record<string, Record<string, number>> = (() => {
+  const t: Record<string, Record<string, number>> = {};
+  MJ96_CODES.forEach(c => (t[c] = {}));
+  MJ96_UPPER.split('|').forEach((row, i) => row.split(' ').forEach((v, k) => { const j = i + k; t[MJ96_CODES[i]][MJ96_CODES[j]] = +v; t[MJ96_CODES[j]][MJ96_CODES[i]] = +v; }));
+  return t;
+})();
+const MJ_SCALE = Number((globalThis as any).process?.env?.MJ_SCALE ?? 1.0); // Miyazawa-Jernigan contact energies ON by default
+const HB_SCALE = Number((globalThis as any).process?.env?.HB_SCALE ?? 1.5); // backbone H-bond well depth [kcal/mol]
 import { inferUniversalDisulfideTopology } from './snaplockLoopClosureSolver';
 import { computeAdaptiveBoundingSphere, Vec3 } from './snaplockCotranslationalEngine';
 
@@ -342,6 +353,9 @@ export interface MultiAgentSimulationOptions {
   referencePdbText?: string | null;
   referenceId?: string;
   enableTargetGuidedRefinement?: boolean;
+  randomSeed?: number;        // multi-start: seed for initial torsion perturbation
+  initialNoiseDeg?: number;   // multi-start: amplitude of random initial (phi, psi) perturbation
+  monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
 }
 
 /**
@@ -436,6 +450,16 @@ export class MultiAgentFoldingSimulation {
       (code3, idx) => new ResidueAgent(idx, n, code3, motifs[idx])
     );
 
+    if (options.randomSeed !== undefined && (options.initialNoiseDeg ?? 0) > 0) {
+      let a = (options.randomSeed >>> 0) + 0x6d2b79f5;
+      const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      const amp = options.initialNoiseDeg!;
+      for (const ag of this.agents) {
+        ag.phiDeg = ResidueAgent.wrapAngleDeg(ag.phiDeg + (rnd() * 2 - 1) * amp);
+        ag.psiDeg = ResidueAgent.wrapAngleDeg(ag.psiDeg + (rnd() * 2 - 1) * amp);
+      }
+    }
+
     this.disulfidePairs =
       options.explicitDisulfidePairs ?? inferUniversalDisulfideTopology(this.sequenceCodes);
 
@@ -497,7 +521,7 @@ export class MultiAgentFoldingSimulation {
     }));
 
     // Step 1: Initialize from exact NeRF backbone dihedrals matching buildBackboneFromTorsionsNeRF!
-    // Crucial: buildBackboneFromTorsionsNeRF places N_{i+1} relative to A = C_{i-1} (NOT N_i), B = CA_i, C = C_i!
+    // buildBackboneFromTorsionsNeRF (fixed 2026-11-09) places N_{i+1} with true psi_i: A = N_i, B = CA_i, C = C_i
     for (let i = 0; i < n; i++) {
       const rCur = refResidues[i];
       const N_i = rCur.atoms.get('N');
@@ -511,8 +535,9 @@ export class MultiAgentFoldingSimulation {
       if (i + 1 < n && CA_i && C_i) {
         const N_next = refResidues[i + 1].atoms.get('N');
         const CA_next = refResidues[i + 1].atoms.get('CA');
-        if (i > 0 && C_prev && N_next) {
-          states[i].psiDeg = extractExactNeRFDihedralDeg(C_prev, CA_i, C_i, N_next);
+        if (N_i && N_next) {
+          // FIX: true psi_i = dihedral(N_i, CA_i, C_i, N_{i+1}) — matches corrected NeRF builder
+          states[i].psiDeg = extractExactNeRFDihedralDeg(N_i, CA_i, C_i, N_next);
         }
         if (N_next && CA_next) {
           states[i].omegaDeg = extractExactNeRFDihedralDeg(CA_i, C_i, N_next, CA_next);
@@ -755,6 +780,18 @@ export class MultiAgentFoldingSimulation {
           vdwEnergy += 2.9 * overlap * overlap;
         } else if (d < 9.5 && !isSsPair) {
           // Gentle VdW dispersion + pairwise hydrophobic droplet attraction
+          const mjScale = MJ_SCALE;
+          if (mjScale > 0 && isSoapBubbleActive && j - i >= 3) {
+            // Miyazawa-Jernigan 1996 contact energy (RT units -> kcal/mol via RT=0.593), Gaussian well at Calpha-Calpha ~6.0 A
+            const eij = (MJ96_EIJ[agI.profile.code3]?.[agJ.profile.code3] ?? -2.0) * 0.593 * mjScale;
+            const r0 = 6.0, sig = 1.6;
+            const g = Math.exp(-Math.pow((d - r0) / sig, 2));
+            const dEdd = eij * g * (-2 * (d - r0) / (sig * sig));
+            // force on I = +dE/dd * u ; force on J = -dE/dd * u
+            agI.soapBubbleForce[0] += ux * dEdd; agI.soapBubbleForce[1] += uy * dEdd; agI.soapBubbleForce[2] += uz * dEdd;
+            agJ.soapBubbleForce[0] -= ux * dEdd; agJ.soapBubbleForce[1] -= uy * dEdd; agJ.soapBubbleForce[2] -= uz * dEdd;
+            soapBubbleEnergy += eij * g;
+          } else {
           const bothHydrophobic =
             agI.profile.hydropathyKyte > 1.2 && agJ.profile.hydropathyKyte > 1.2;
           if (bothHydrophobic && isSoapBubbleActive) {
@@ -768,6 +805,25 @@ export class MultiAgentFoldingSimulation {
             agJ.soapBubbleForce[1] += uy * fAttr;
             agJ.soapBubbleForce[2] += uz * fAttr;
             soapBubbleEnergy -= 0.14 * Math.exp(-Math.pow((d - rOpt) / 2.8, 2));
+          }
+        }
+        }
+
+        // A2. Backbone hydrogen bonds O(i)...N(j) (helices i->i+4, sheets |i-j|>=3), Gaussian well at 2.9 A
+        if (HB_SCALE > 0 && isSoapBubbleActive && j - i >= 3) {
+          const bbI = this.backboneAtoms[i], bbJ = this.backboneAtoms[j];
+          for (const [oAt, nAt, agO, agN] of [[bbI.O, bbJ.N, agI, agJ], [bbJ.O, bbI.N, agJ, agI]] as const) {
+            if (!oAt || !nAt) continue;
+            const hx = nAt[0] - oAt[0], hy = nAt[1] - oAt[1], hz = nAt[2] - oAt[2];
+            const r = Math.max(1e-3, Math.hypot(hx, hy, hz));
+            if (r > 4.5) continue;
+            const g = Math.exp(-Math.pow((r - 2.9) / 0.45, 2));
+            const e = -HB_SCALE * g;
+            const dEdr = e * (-2 * (r - 2.9) / (0.45 * 0.45));
+            const vx = hx / r, vy = hy / r, vz = hz / r; // O -> N
+            agO.soapBubbleForce[0] += vx * dEdr; agO.soapBubbleForce[1] += vy * dEdr; agO.soapBubbleForce[2] += vz * dEdr;
+            agN.soapBubbleForce[0] -= vx * dEdr; agN.soapBubbleForce[1] -= vy * dEdr; agN.soapBubbleForce[2] -= vz * dEdr;
+            soapBubbleEnergy += e;
           }
         }
 
@@ -1224,13 +1280,17 @@ export function runMultiAgentFoldingToConvergence(
     }
     if (
       convergedFinalDiag.stage === 'CONVERGED_GLOBAL_MINIMUM' &&
-      (convergedFinalDiag.liveKabschCaRmsdAngstrom === null ||
+      (!options.enableTargetGuidedRefinement || // FIX: blind runs must not use the reference to decide when to stop
+        convergedFinalDiag.liveKabschCaRmsdAngstrom === null ||
         convergedFinalDiag.liveKabschCaRmsdAngstrom < 0.85)
     ) {
       break;
     }
   }
 
+  if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1 });
+  }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
     simulation: sim,
@@ -1243,4 +1303,47 @@ export function runMultiAgentFoldingToConvergence(
     trajectoryHistory: history,
     ...exported
   };
+}
+
+
+// ---------------------------------------------------------------------------
+// Monte Carlo simulated annealing w przestrzeni kątów (phi, psi) na energii silnika multi-agent.
+// Wybór ruchów i akceptacja zależą WYŁĄCZNIE od energii — bez dostępu do struktury docelowej.
+export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number; seed?: number; }
+export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
+  const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
+  let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
+  const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy; };
+  // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
+  const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
+  const n = sim.agents.length;
+  sim.rebuildBackboneNeRF();
+  let E = energy(), bestE = E;
+  let best = sim.agents.map((ag: any) => [ag.phiDeg, ag.psiDeg]);
+  let accepted = 0;
+  for (let s = 0; s < steps; s++) {
+    const T = t0 * Math.pow(t1 / t0, s / steps);
+    const i = 1 + Math.floor(rnd() * (n - 2));
+    const ag = sim.agents[i];
+    const old = [ag.phiDeg, ag.psiDeg];
+    if (rnd() < 0.25) {
+      const isGly = ag.profile.code3 === 'GLY';
+      const b = basins[Math.floor(rnd() * (isGly ? 5 : 4))];
+      ag.phiDeg = b[0] + (rnd() - 0.5) * 30; ag.psiDeg = b[1] + (rnd() - 0.5) * 30;
+    } else {
+      ag.phiDeg = ((ag.phiDeg + (rnd() - 0.5) * 40 + 540) % 360) - 180;
+      ag.psiDeg = ((ag.psiDeg + (rnd() - 0.5) * 40 + 540) % 360) - 180;
+    }
+    if (ag.profile.code3 === 'PRO') ag.phiDeg = -65;
+    sim.rebuildBackboneNeRF();
+    const E2 = energy();
+    if (E2 <= E || rnd() < Math.exp(-(E2 - E) / T)) {
+      E = E2; accepted++;
+      if (E < bestE) { bestE = E; best = sim.agents.map((g: any) => [g.phiDeg, g.psiDeg]); }
+    } else { ag.phiDeg = old[0]; ag.psiDeg = old[1]; }
+  }
+  sim.agents.forEach((g: any, k: number) => { g.phiDeg = best[k][0]; g.psiDeg = best[k][1]; });
+  sim.rebuildBackboneNeRF();
+  return { bestEnergyKcal: bestE, acceptanceRate: accepted / steps };
 }

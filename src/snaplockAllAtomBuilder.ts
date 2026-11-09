@@ -1625,7 +1625,7 @@ export function exportStandardAllAtomPdb(
   lines.push(pad80(`COMPND   2 MOLECULE: SNAPLOCK ALL-ATOM POLYPEPTIDE;`));
   lines.push(pad80(`COMPND   3 CHAIN: A;`));
   lines.push(pad80(`SOURCE    MOL_ID: 1; SYNTHETIC: YES;`));
-  lines.push(pad80(`KEYWDS    SNAPLOCK, E8 LATTICE, ALL-ATOM, ROTAMERS, SSBOND, CARTESIAN ALIGNED`));
+  lines.push(pad80(`KEYWDS    SNAPLOCK, ALL-ATOM, ROTAMERS, SSBOND, CARTESIAN ALIGNED`));
   lines.push(pad80(`EXPDTA    THEORETICAL MODEL`));
 
   lines.push(pad80(`REMARK 250`));

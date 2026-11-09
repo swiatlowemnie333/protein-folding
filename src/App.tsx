@@ -34,9 +34,9 @@ import { AminoAcid, ConnectedAminoAcid, BenchmarkProteinId } from './types';
 import { BENCHMARK_PROTEINS } from './benchmarks';
 import { BioinformaticsModal } from './components/BioinformaticsModal';
 import { SnaplockChatbot } from './components/SnaplockChatbot';
-import { SnaplockWarehouseView } from './components/SnaplockWarehouseView';
-import { SkyMapPlanetariumView } from './components/SkyMapPlanetariumView';
-import { AminoAcidSphereWarehouseView } from './components/AminoAcidSphereWarehouseView';
+import { SnaplockParameterAuditView } from './components/SnaplockParameterAuditView';
+import { SnaplockHeatmapView } from './components/SnaplockHeatmapView';
+import { AminoAcidCatalogView } from './components/AminoAcidCatalogView';
 import { SnaplockProteinConstructorView } from './components/SnaplockProteinConstructorView';
 import { SnaplockValidatorView } from './components/SnaplockValidatorView';
 import { MutationDiagnosticsView } from './components/MutationDiagnosticsView';
@@ -98,7 +98,7 @@ export default function App() {
   // Web Audio Context reference for synthesizer
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [synthWave, setSynthWave] = useState<OscillatorType>('sine');
-  const [soundFeedback, setSoundFeedback] = useState<string>('Silnik SNAPLOCK E8 gotowy');
+  const [soundFeedback, setSoundFeedback] = useState<string>('Silnik fizyczny SNAPLOCK gotowy (Å, kcal/mol)');
   const [triggeredKey, setTriggeredKey] = useState<string | null>(null);
 
   // --- DETERMINISTIC PHYSICAL FOLDING STATES ---
@@ -119,7 +119,6 @@ export default function App() {
   // Side Control Slider Panel visibility (docked on the right for zoom & vertical sequence scrolling)
   const [showSideSlider, setShowSideSlider] = useState<boolean>(true);
   const [showRibbonTape, setShowRibbonTape] = useState<boolean>(true);
-  const [showSynthPiano, setShowSynthPiano] = useState<boolean>(false);
 
   // Centralized Global Protein Target switcher — updates ALL tabs (A..H) synchronously!
   const handleSelectGlobalTarget = (targetId: Exclude<GlobalProteinTargetId, 'CUSTOM'>) => {
@@ -454,7 +453,7 @@ export default function App() {
         {/* Left: Scrollable Chrome Tabs A..H */}
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
           
-          {/* TAB A: Magazyn 21 Kul E8 */}
+          {/* TAB A: Katalog 20 Aminokwasów (+ SEC/PYL) */}
           <button
             onClick={() => setActiveTab('A')}
             className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
@@ -462,13 +461,13 @@ export default function App() {
                 ? 'bg-[#020205] border-zinc-700 border-b-transparent text-white shadow-xl ring-1 ring-cyan-500/20'
                 : 'bg-[#101222]/80 border-transparent text-zinc-400 hover:text-white hover:bg-[#17192f]'
             }`}
-            title="Karta A: 21 sfer aminokwasowych opisanych w siatce 248 trójkątnych faset E8"
+            title="Karta A: Katalog 20 standardowych aminokwasów (+ SEC, PYL) w jednostkach Å i kcal/mol"
           >
             <Boxes className="w-3.5 h-3.5 text-cyan-400" />
-            <span>A: Magazyn 21 Kul</span>
+            <span>A: Katalog Aminokwasów</span>
           </button>
 
-          {/* TAB B: Konstruktor 3D (N->C Soft SnapLock & Bańka Mydlana) */}
+          {/* TAB B: Konstruktor 3D (N->C Soft SnapLock, Bańka Mydlana & Mikroskop Å) */}
           <button
             onClick={() => setActiveTab('B')}
             className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
@@ -476,10 +475,10 @@ export default function App() {
                 ? 'bg-[#000000] border-zinc-700 border-b-transparent text-white shadow-xl ring-1 ring-indigo-500/30'
                 : 'bg-[#101222]/80 border-transparent text-zinc-400 hover:text-white hover:bg-[#17192f]'
             }`}
-            title="Karta B: Wieloagentowy wzrost kotranslacyjny N→C (Soft SnapLock) + odcięcie od rybosomu (Bańka Mydlana & relaksacja φ/ψ)"
+            title="Karta B: Wieloagentowy wzrost kotranslacyjny N→C + Bańka Mydlana + tryb pierwszoosobowy Mikroskop Å"
           >
             <Compass className="w-3.5 h-3.5 text-indigo-400" />
-            <span>B: Konstruktor N→C &amp; Bańka</span>
+            <span>B: Konstruktor &amp; Mikroskop Å</span>
           </button>
 
           {/* TAB C: Walidator Kabsch SVD 1:1 (< 1.0 Å Hard Gate) */}
@@ -510,7 +509,7 @@ export default function App() {
             <span>D: Mutacje</span>
           </button>
 
-          {/* TAB E: Przywrócona Matryca 22 Parametrów & Złącza 5 Ścieżek */}
+          {/* TAB E: Audyt Parametrów w Przeglądarce */}
           <button
             onClick={() => setActiveTab('E')}
             className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
@@ -518,24 +517,24 @@ export default function App() {
                 ? 'bg-[#020205] border-zinc-700 border-b-transparent text-white shadow-xl ring-1 ring-amber-500/20'
                 : 'bg-[#101222]/80 border-transparent text-zinc-400 hover:text-white hover:bg-[#17192f]'
             }`}
-            title="Karta E: Pełna tabela 22 parametrów fizykochemicznych aminokwasów, 248 łatek E8 i test 5 ścieżek"
+            title="Karta E: Audyt czułości wszystkich parametrów aminokwasów liczony w przeglądarce (ΔE, ΔRMSD, weryfikacja w kodzie)"
           >
             <Database className="w-3.5 h-3.5 text-amber-400" />
-            <span>E: Tabela 22 Param.</span>
+            <span>E: Audyt Parametrów</span>
           </button>
 
-          {/* TAB F: Przywrócone Planetarium SkyMap 360° */}
+          {/* TAB F: Mapy Ciepła (Cα-Cα, Orientacja N-Cα-C, Diff, TM-Score) */}
           <button
             onClick={() => setActiveTab('F')}
             className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
               activeTab === 'F'
-                ? 'bg-[#020205] border-zinc-700 border-b-transparent text-white shadow-xl ring-1 ring-purple-500/20'
+                ? 'bg-[#020205] border-zinc-700 border-b-transparent text-white shadow-xl ring-1 ring-teal-500/20'
                 : 'bg-[#101222]/80 border-transparent text-zinc-400 hover:text-white hover:bg-[#17192f]'
             }`}
-            title="Karta F: Planetarium SkyMap 360° z kamerą w środku masy [0,0,0] aktywnego aminokwasu"
+            title="Karta F: Mapy Ciepła Cα–Cα, Orientacja z układu lokalnego N-Cα-C, Tryb Różnicowy Diff oraz TM-score"
           >
-            <Eye className="w-3.5 h-3.5 text-purple-400" />
-            <span>F: SkyMap 360°</span>
+            <Eye className="w-3.5 h-3.5 text-teal-400" />
+            <span>F: Mapy Ciepła</span>
           </button>
 
           {/* TAB G: Autokalibracja & Ablation M1-M5 (Train / Val / Test) */}
@@ -552,7 +551,7 @@ export default function App() {
             <span>G: Autokalibracja M1–M5</span>
           </button>
 
-          {/* TAB H: Nowa Karta — Fizyka Oderwania od Rybosomu, Bańka Mydlana & Skaner 4 Ścieżek Przez Płytę */}
+          {/* TAB H: Fizyka Oderwania od Rybosomu, Bańka Mydlana & Skaner 4 Ścieżek Przez Płytę */}
           <button
             onClick={() => setActiveTab('H')}
             className={`px-3 py-1.5 rounded-t-xl font-mono text-[11.5px] font-bold flex items-center gap-1.5 transition cursor-pointer border-t border-x shrink-0 ${
@@ -581,21 +580,8 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right side: Restored Utility Modals (Bioinformatics, Benchmark, Synth Piano) + Chatbot */}
+        {/* Right side: Restored Utility Modals (Bioinformatics, Benchmark) + Chatbot */}
         <div className="flex items-center gap-1.5 font-mono text-xs shrink-0 pb-1">
-          <button
-            onClick={() => setShowSynthPiano(prev => !prev)}
-            className={`px-2.5 py-1 rounded border text-[11px] font-bold flex items-center gap-1 cursor-pointer transition ${
-              showSynthPiano
-                ? 'bg-amber-950 border-amber-500 text-amber-200'
-                : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300'
-            }`}
-            title="Syntezator harmoniczny E8 (klawisze 0–9)"
-          >
-            <Music className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden 2xl:inline">Synth E8</span>
-          </button>
-
           <button
             onClick={() => setIsBioinformaticsModalOpen(true)}
             className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition"

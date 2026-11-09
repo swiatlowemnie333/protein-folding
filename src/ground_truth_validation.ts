@@ -21,7 +21,7 @@ export const STANDARD_21_AMINO_ACIDS = new Set<string>([
   'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
   'LEU', 'LYS', 'MET', 'PHE', 'PRO',
   'SER', 'THR', 'TRP', 'TYR', 'VAL',
-  'SEC'
+  'SEC', 'PYL'
 ]);
 
 export const MODIFIED_RESIDUE_CANONICAL_MAP: Record<string, string> = {
@@ -42,7 +42,7 @@ export const THREE_TO_ONE_MAP: Record<string, string> = {
   GLN: 'Q', GLU: 'E', GLY: 'G', HIS: 'H', ILE: 'I',
   LEU: 'L', LYS: 'K', MET: 'M', PHE: 'F', PRO: 'P',
   SER: 'S', THR: 'T', TRP: 'W', TYR: 'Y', VAL: 'V',
-  SEC: 'U'
+  SEC: 'U', PYL: 'O'
 };
 
 const SOLVENT_AND_ION_NAMES = new Set<string>([

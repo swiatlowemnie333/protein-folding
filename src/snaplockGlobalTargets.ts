@@ -56,7 +56,7 @@ const ONE_TO_THREE: Record<string, string> = {
   Q: 'GLN', E: 'GLU', G: 'GLY', H: 'HIS', I: 'ILE',
   L: 'LEU', K: 'LYS', M: 'MET', F: 'PHE', P: 'PRO',
   S: 'SER', T: 'THR', W: 'TRP', Y: 'TYR', V: 'VAL',
-  U: 'SEC'
+  U: 'SEC', O: 'PYL'
 };
 
 function seq1ToSeq3(seq1: string): string[] {

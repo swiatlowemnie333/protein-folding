@@ -238,6 +238,21 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
   } | null>(null);
   const refAlignRequestIdRef = useRef<number>(0);
 
+  // --- MIKROSKOP Å (FIRST-PERSON ANT-MAN SCALE MODE) ---
+  const [isMicroscopeMode, setIsMicroscopeMode] = useState<boolean>(false);
+  const [microscopeScale, setMicroscopeScale] = useState<number>(1.0); // 0.2 to 3.0 scale
+  const [activeFlightPath, setActiveFlightPath] = useState<
+    'NONE' | 'PATH_1_BACKBONE' | 'PATH_2_SPIRAL_BOTTOM_UP' | 'PATH_3_SPIRAL_FRONT_BACK' | 'PATH_4_LATERAL_BONDS' | 'PATH_5_DISULFIDE'
+  >('NONE');
+  const [flightProgress, setFlightProgress] = useState<number>(0); // 0..1
+  const flightAnimRef = useRef<number | null>(null);
+
+  // First-person camera orientation & position in protein space
+  const fpCamPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const fpCamYaw = useRef<number>(0);
+  const fpCamPitch = useRef<number>(0);
+  const keysDown = useRef<Record<string, boolean>>({});
+
   // Three.js Scene Refs
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -906,22 +921,54 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
     };
     window.addEventListener('resize', handleResize);
 
+    // Keyboard WASD event listeners for Mikroskop Å mode
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysDown.current[e.key.toLowerCase()] = true;
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysDown.current[e.key.toLowerCase()] = false;
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
     // Animation Loop
     const animate = () => {
       animFrameRef.current = requestAnimationFrame(animate);
 
       if (cameraRef.current) {
-        const rX = orbitAngle.current.x;
-        const rY = orbitAngle.current.y;
-        const d = cameraDist.current;
-        const target = panOffset.current;
+        if (isMicroscopeMode) {
+          // First-person WASD motion
+          const speed = 0.22 * (microscopeScale || 1.0);
+          const yaw = fpCamYaw.current;
+          const pitch = fpCamPitch.current;
+          const forward = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+          const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+          const up = new THREE.Vector3(0, 1, 0);
 
-        cameraRef.current.position.set(
-          target.x + d * Math.sin(rY) * Math.cos(rX),
-          target.y + d * Math.sin(rX),
-          target.z + d * Math.cos(rY) * Math.cos(rX)
-        );
-        cameraRef.current.lookAt(target);
+          if (keysDown.current['w']) fpCamPos.current.addScaledVector(forward, speed);
+          if (keysDown.current['s']) fpCamPos.current.addScaledVector(forward, -speed);
+          if (keysDown.current['a']) fpCamPos.current.addScaledVector(right, -speed);
+          if (keysDown.current['d']) fpCamPos.current.addScaledVector(right, speed);
+          if (keysDown.current['q']) fpCamPos.current.addScaledVector(up, speed);
+          if (keysDown.current['e']) fpCamPos.current.addScaledVector(up, -speed);
+
+          cameraRef.current.position.copy(fpCamPos.current);
+          const lookTarget = fpCamPos.current.clone().add(forward);
+          cameraRef.current.lookAt(lookTarget);
+        } else {
+          // Standard Orbit Camera
+          const rX = orbitAngle.current.x;
+          const rY = orbitAngle.current.y;
+          const d = cameraDist.current;
+          const target = panOffset.current;
+
+          cameraRef.current.position.set(
+            target.x + d * Math.sin(rY) * Math.cos(rX),
+            target.y + d * Math.sin(rX),
+            target.z + d * Math.cos(rY) * Math.cos(rX)
+          );
+          cameraRef.current.lookAt(target);
+        }
       }
 
       renderer.render(scene, camera);
@@ -931,6 +978,8 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
       renderer.dispose();
     };
   }, []);
@@ -1168,15 +1217,15 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
         wireMesh.scale.setScalar(SPHERE_RADIUS * 1.002);
         residueGroup.add(wireMesh);
 
-        const p1Beacon = new THREE.Mesh(unitSphereGeo, p1Mat);
-        p1Beacon.scale.setScalar(0.18);
-        p1Beacon.position.set(0, SPHERE_RADIUS, 0);
-        residueGroup.add(p1Beacon);
+        const inletNBeacon = new THREE.Mesh(unitSphereGeo, p1Mat);
+        inletNBeacon.scale.setScalar(0.18);
+        inletNBeacon.position.set(0, SPHERE_RADIUS, 0);
+        residueGroup.add(inletNBeacon);
 
-        const p248Beacon = new THREE.Mesh(unitSphereGeo, p248Mat);
-        p248Beacon.scale.setScalar(0.18);
-        p248Beacon.position.set(0, -SPHERE_RADIUS, 0);
-        residueGroup.add(p248Beacon);
+        const outletCBeacon = new THREE.Mesh(unitSphereGeo, p248Mat);
+        outletCBeacon.scale.setScalar(0.18);
+        outletCBeacon.position.set(0, -SPHERE_RADIUS, 0);
+        residueGroup.add(outletCBeacon);
       }
 
       // B. Cα w centrum klocka
@@ -1545,13 +1594,20 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
     const dx = e.clientX - prevMousePos.current.x;
     const dy = e.clientY - prevMousePos.current.y;
 
-    if (isPanning.current) {
-      panOffset.current.x -= dx * 0.05;
-      panOffset.current.y += dy * 0.05;
+    if (isMicroscopeMode) {
+      // First-person mouse look (yaw & pitch)
+      fpCamYaw.current -= dx * 0.005;
+      fpCamPitch.current -= dy * 0.005;
+      fpCamPitch.current = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, fpCamPitch.current));
     } else {
-      orbitAngle.current.y += dx * 0.008;
-      orbitAngle.current.x += dy * 0.008;
-      orbitAngle.current.x = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, orbitAngle.current.x));
+      if (isPanning.current) {
+        panOffset.current.x -= dx * 0.05;
+        panOffset.current.y += dy * 0.05;
+      } else {
+        orbitAngle.current.y += dx * 0.008;
+        orbitAngle.current.x += dy * 0.008;
+        orbitAngle.current.x = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, orbitAngle.current.x));
+      }
     }
 
     prevMousePos.current = { x: e.clientX, y: e.clientY };
@@ -1562,11 +1618,188 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
     isPanning.current = false;
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomDelta = e.deltaY * 0.04;
-    cameraDist.current = Math.max(12, Math.min(220, cameraDist.current + zoomDelta));
+  // Touch handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      isDragging.current = true;
+      prevMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
   };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging.current || e.touches.length === 0) return;
+    const dx = e.touches[0].clientX - prevMousePos.current.x;
+    const dy = e.touches[0].clientY - prevMousePos.current.y;
+
+    if (isMicroscopeMode) {
+      fpCamYaw.current -= dx * 0.006;
+      fpCamPitch.current -= dy * 0.006;
+      fpCamPitch.current = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, fpCamPitch.current));
+    } else {
+      orbitAngle.current.y += dx * 0.009;
+      orbitAngle.current.x += dy * 0.009;
+      orbitAngle.current.x = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, orbitAngle.current.x));
+    }
+    prevMousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const handleTouchEnd = () => {
+    isDragging.current = false;
+  };
+
+  // --- MIKROSKOP Å NAVIGATION & 5 AUTOMATED FLIGHT PATHS ---
+  const jumpToResidueFirstPerson = (resIdx: number) => {
+    const safeIdx = Math.max(0, Math.min(resIdx, foldedPositions.length - 1));
+    setActiveResidueIdx(safeIdx);
+    const ca = foldedPositions[safeIdx];
+    if (!ca) return;
+
+    // Center of mass / CA coordinates
+    fpCamPos.current.set(ca[0], ca[1], ca[2]);
+
+    // Local N-Cα-C frame orientation
+    // Find C and N atoms for this residue if available
+    let forward = new THREE.Vector3(0, 0, -1);
+    if (allAtomStructure) {
+      const caAtom = allAtomStructure.atoms.find(a => a.resSeq === safeIdx + 1 && a.atomName === 'CA');
+      const cAtom = allAtomStructure.atoms.find(a => a.resSeq === safeIdx + 1 && a.atomName === 'C');
+      if (caAtom && cAtom) {
+        forward.set(cAtom.x - caAtom.x, cAtom.y - caAtom.y, cAtom.z - caAtom.z).normalize();
+      }
+    } else if (safeIdx + 1 < foldedPositions.length) {
+      const nextCa = foldedPositions[safeIdx + 1];
+      forward.set(nextCa[0] - ca[0], nextCa[1] - ca[1], nextCa[2] - ca[2]).normalize();
+    }
+
+    fpCamYaw.current = Math.atan2(-forward.x, -forward.z);
+    fpCamPitch.current = Math.asin(forward.y);
+  };
+
+  const handleStartFlightPath = (pathType: typeof activeFlightPath) => {
+    if (pathType === 'NONE') {
+      if (flightAnimRef.current) cancelAnimationFrame(flightAnimRef.current);
+      flightAnimRef.current = null;
+      setActiveFlightPath('NONE');
+      return;
+    }
+
+    setActiveFlightPath(pathType);
+    let t = 0;
+    const durationFrames = 280; // ~4.6 seconds flight tour
+
+    const flightStep = () => {
+      t += 1;
+      const progress = Math.min(1.0, t / durationFrames);
+      setFlightProgress(progress);
+
+      const n = foldedPositions.length;
+      if (n > 1) {
+        let targetX = 0, targetY = 0, targetZ = 0;
+
+        if (pathType === 'PATH_1_BACKBONE') {
+          // (1) N -> C peptide chain
+          const idxFloat = progress * (n - 1);
+          const i0 = Math.floor(idxFloat);
+          const i1 = Math.min(n - 1, i0 + 1);
+          const frac = idxFloat - i0;
+          const p0 = foldedPositions[i0];
+          const p1 = foldedPositions[i1];
+          targetX = p0[0] + frac * (p1[0] - p0[0]);
+          targetY = p0[1] + frac * (p1[1] - p0[1]);
+          targetZ = p0[2] + frac * (p1[2] - p0[2]);
+        } else if (pathType === 'PATH_2_SPIRAL_BOTTOM_UP') {
+          // (2) Bottom -> Top spiral along centers of mass
+          const sorted = [...foldedPositions].sort((a, b) => a[1] - b[1]);
+          const idxFloat = progress * (n - 1);
+          const i0 = Math.floor(idxFloat);
+          const i1 = Math.min(n - 1, i0 + 1);
+          const frac = idxFloat - i0;
+          const p0 = sorted[i0];
+          const p1 = sorted[i1];
+          const angle = progress * Math.PI * 6; // 3 full turns spiral
+          const radius = 4.5;
+          targetX = p0[0] + frac * (p1[0] - p0[0]) + Math.cos(angle) * radius;
+          targetY = p0[1] + frac * (p1[1] - p0[1]);
+          targetZ = p0[2] + frac * (p1[2] - p0[2]) + Math.sin(angle) * radius;
+        } else if (pathType === 'PATH_3_SPIRAL_FRONT_BACK') {
+          // (3) Front -> Back spiral
+          const sorted = [...foldedPositions].sort((a, b) => a[2] - b[2]);
+          const idxFloat = progress * (n - 1);
+          const i0 = Math.floor(idxFloat);
+          const i1 = Math.min(n - 1, i0 + 1);
+          const frac = idxFloat - i0;
+          const p0 = sorted[i0];
+          const p1 = sorted[i1];
+          const angle = progress * Math.PI * 6;
+          const radius = 4.5;
+          targetX = p0[0] + frac * (p1[0] - p0[0]) + Math.cos(angle) * radius;
+          targetY = p0[1] + frac * (p1[1] - p0[1]) + Math.sin(angle) * radius;
+          targetZ = p0[2] + frac * (p1[2] - p0[2]);
+        } else if (pathType === 'PATH_4_LATERAL_BONDS') {
+          // (4) Lateral bonds tour (inspect salt bridges & H-bonds)
+          const latIdx = Math.floor(progress * n);
+          const pos = foldedPositions[latIdx % n];
+          targetX = pos[0] + Math.sin(progress * 12) * 2.2;
+          targetY = pos[1] + Math.cos(progress * 12) * 2.2;
+          targetZ = pos[2];
+        } else if (pathType === 'PATH_5_DISULFIDE') {
+          // (5) Disulfide bridges S-S tour
+          const pairs = foldingMetrics?.ssBondPairs || [];
+          if (pairs.length > 0) {
+            const pairIdx = Math.floor(progress * pairs.length) % pairs.length;
+            const [i1, i2] = pairs[pairIdx];
+            const p1 = foldedPositions[i1] || foldedPositions[0];
+            const p2 = foldedPositions[i2] || foldedPositions[0];
+            targetX = (p1[0] + p2[0]) * 0.5 + Math.sin(progress * 20) * 1.8;
+            targetY = (p1[1] + p2[1]) * 0.5 + Math.cos(progress * 20) * 1.8;
+            targetZ = (p1[2] + p2[2]) * 0.5;
+          } else {
+            const p = foldedPositions[Math.floor(progress * n)];
+            targetX = p[0]; targetY = p[1]; targetZ = p[2];
+          }
+        }
+
+        fpCamPos.current.set(targetX, targetY, targetZ);
+        // Look towards next increment
+        fpCamYaw.current = progress * Math.PI * 2;
+      }
+
+      if (progress < 1.0) {
+        flightAnimRef.current = requestAnimationFrame(flightStep);
+      } else {
+        flightAnimRef.current = null;
+        setActiveFlightPath('NONE');
+      }
+    };
+
+    flightAnimRef.current = requestAnimationFrame(flightStep);
+  };
+
+  // 6 Nearest neighbors calculation for the active residue
+  const nearestNeighbors = useMemo(() => {
+    if (!foldedPositions || foldedPositions.length === 0) return [];
+    const safeIdx = Math.max(0, Math.min(activeResidueIdx, foldedPositions.length - 1));
+    const origin = foldedPositions[safeIdx];
+    if (!origin) return [];
+
+    const list: { idx: number; code: string; dist: number; hydropathy: number }[] = [];
+    for (let j = 0; j < foldedPositions.length; j++) {
+      if (j === safeIdx) continue;
+      const pj = foldedPositions[j];
+      const d = Math.hypot(pj[0] - origin[0], pj[1] - origin[1], pj[2] - origin[2]);
+      const aaCode = sequenceCodes[j] || 'ALA';
+      const blk = SNAPLOCK_21_BLOCKS[aaCode] || SNAPLOCK_21_BLOCKS['ALA'];
+      list.push({
+        idx: j,
+        code: aaCode,
+        dist: parseFloat(d.toFixed(2)),
+        hydropathy: blk.physico.hydropathyKyte
+      });
+    }
+
+    list.sort((a, b) => a.dist - b.dist);
+    return list.slice(0, 6);
+  }, [activeResidueIdx, foldedPositions, sequenceCodes]);
 
   // Generate Current Standard All-Atom wwPDB v3.3 String
   const currentPdbString = useMemo(() => {
@@ -1936,6 +2169,26 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
             <span>Wektory Agentów</span>
           </button>
 
+          {/* MIKROSKOP Å (ANT-MAN FIRST-PERSON MODE) TOGGLE */}
+          <button
+            onClick={() => {
+              const nextMode = !isMicroscopeMode;
+              setIsMicroscopeMode(nextMode);
+              if (nextMode) {
+                jumpToResidueFirstPerson(activeResidueIdx);
+              }
+            }}
+            className={`px-2.5 py-0.5 rounded border transition cursor-pointer flex items-center gap-1.5 font-bold ${
+              isMicroscopeMode 
+                ? 'bg-rose-950/90 border-rose-500 text-rose-200 ring-2 ring-rose-500/40 shadow-lg' 
+                : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-300'
+            }`}
+            title="Przełącz w tryb pierwszoosobowy wewnątrz białka (jak Ant-Man): kamera w środku reszty, sterowanie WASD + mysz/gesty, linijka 1 Å, etykiety 6 najbliższych reszt i 5 tras przelotu"
+          >
+            <Eye className="w-3.5 h-3.5 text-rose-400" />
+            <span>{isMicroscopeMode ? 'Wyjdź z Mikroskopu Å' : 'Mikroskop Å (Ant-Man)'}</span>
+          </button>
+
           <button
             onClick={() => setShowFacetCages(!showFacetCages)}
             className={`px-2 py-0.5 rounded border transition cursor-pointer flex items-center gap-1 ${
@@ -1943,7 +2196,7 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
             }`}
           >
             <Boxes className="w-3 h-3" />
-            <span>Kule 248 Faset</span>
+            <span>Powłoki Van der Waalsa</span>
           </button>
 
           <button
@@ -2103,13 +2356,196 @@ export const SnaplockProteinConstructorView: React.FC<SnaplockProteinConstructor
         {/* 3D Mount Container */}
         <div
           ref={mountRef}
-          className="flex-1 w-full h-full min-h-0 cursor-grab active:cursor-grabbing select-none"
+          className="flex-1 w-full h-full min-h-0 cursor-grab active:cursor-grabbing select-none relative"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         />
+
+        {/* ======================================================== */}
+        {/* MIKROSKOP Å: FIRST-PERSON HUD OVERLAY (ANT-MAN SCALE)    */}
+        {/* ======================================================== */}
+        {isMicroscopeMode && (
+          <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-20 font-mono text-xs select-none">
+            
+            {/* Top Bar: Residue Jump, Prev/Next & 5 Flight Path Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pointer-events-auto bg-black/85 backdrop-blur-md border border-rose-900/60 p-3 rounded-2xl shadow-2xl">
+              
+              {/* Residue Stepper */}
+              <div className="flex items-center gap-2">
+                <span className="text-rose-400 font-bold text-[11px] flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-rose-500 animate-pulse" />
+                  <span>Mikroskop Å:</span>
+                </span>
+
+                <button
+                  onClick={() => jumpToResidueFirstPerson(activeResidueIdx - 1)}
+                  disabled={activeResidueIdx <= 0}
+                  className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 disabled:opacity-40 cursor-pointer text-xs font-bold"
+                >
+                  ◀ Poprzednia
+                </button>
+
+                <button
+                  onClick={() => jumpToResidueFirstPerson(activeResidueIdx)}
+                  className="px-3 py-1 rounded bg-rose-950 border border-rose-500 text-rose-200 cursor-pointer text-xs font-bold shadow-md"
+                  title="Ustaw kamerę w środku masy i lokalnym układzie N-Cα-C tej reszty"
+                >
+                  Wejdź do reszty #{safeActiveIdx + 1} ({activeResidueCode})
+                </button>
+
+                <button
+                  onClick={() => jumpToResidueFirstPerson(activeResidueIdx + 1)}
+                  disabled={activeResidueIdx >= sequenceCodes.length - 1}
+                  className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 disabled:opacity-40 cursor-pointer text-xs font-bold"
+                >
+                  Następna ▶
+                </button>
+              </div>
+
+              {/* 5 Automated Flight Paths */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase">5 Tras Przelotu:</span>
+                
+                <button
+                  onClick={() => handleStartFlightPath(activeFlightPath === 'PATH_1_BACKBONE' ? 'NONE' : 'PATH_1_BACKBONE')}
+                  className={`px-2 py-0.5 rounded border text-[10.5px] font-bold cursor-pointer transition ${
+                    activeFlightPath === 'PATH_1_BACKBONE' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-zinc-900 text-zinc-300 border-zinc-700'
+                  }`}
+                  title="(1) Przelot wzdłuż łańcucha peptydowego N→C"
+                >
+                  (1) N→C
+                </button>
+
+                <button
+                  onClick={() => handleStartFlightPath(activeFlightPath === 'PATH_2_SPIRAL_BOTTOM_UP' ? 'NONE' : 'PATH_2_SPIRAL_BOTTOM_UP')}
+                  className={`px-2 py-0.5 rounded border text-[10.5px] font-bold cursor-pointer transition ${
+                    activeFlightPath === 'PATH_2_SPIRAL_BOTTOM_UP' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-zinc-900 text-zinc-300 border-zinc-700'
+                  }`}
+                  title="(2) Ślimak dół→góra po środkach masy aminokwasów"
+                >
+                  (2) Ślimak Dół➔Góra
+                </button>
+
+                <button
+                  onClick={() => handleStartFlightPath(activeFlightPath === 'PATH_3_SPIRAL_FRONT_BACK' ? 'NONE' : 'PATH_3_SPIRAL_FRONT_BACK')}
+                  className={`px-2 py-0.5 rounded border text-[10.5px] font-bold cursor-pointer transition ${
+                    activeFlightPath === 'PATH_3_SPIRAL_FRONT_BACK' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-zinc-900 text-zinc-300 border-zinc-700'
+                  }`}
+                  title="(3) Ślimak przód→tył"
+                >
+                  (3) Przód➔Tył
+                </button>
+
+                <button
+                  onClick={() => handleStartFlightPath(activeFlightPath === 'PATH_4_LATERAL_BONDS' ? 'NONE' : 'PATH_4_LATERAL_BONDS')}
+                  className={`px-2 py-0.5 rounded border text-[10.5px] font-bold cursor-pointer transition ${
+                    activeFlightPath === 'PATH_4_LATERAL_BONDS' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-zinc-900 text-zinc-300 border-zinc-700'
+                  }`}
+                  title="(4) Wiązania boczne i mostki solne"
+                >
+                  (4) Boczne
+                </button>
+
+                <button
+                  onClick={() => handleStartFlightPath(activeFlightPath === 'PATH_5_DISULFIDE' ? 'NONE' : 'PATH_5_DISULFIDE')}
+                  className={`px-2 py-0.5 rounded border text-[10.5px] font-bold cursor-pointer transition ${
+                    activeFlightPath === 'PATH_5_DISULFIDE' ? 'bg-amber-600 text-black border-amber-300' : 'bg-zinc-900 text-zinc-300 border-zinc-700'
+                  }`}
+                  title="(5) Mostki dwusiarczkowe S-S"
+                >
+                  (5) Mostki S-S
+                </button>
+              </div>
+
+            </div>
+
+            {/* Center Area: Crosshair + 1 Å Sub-nanometer Reticle */}
+            <div className="self-center flex flex-col items-center justify-center relative pointer-events-none opacity-40">
+              <div className="w-16 h-16 border border-cyan-500/50 rounded-full flex items-center justify-center">
+                <div className="w-1.5 h-1.5 bg-rose-400 rounded-full" />
+              </div>
+              <div className="w-28 h-[1px] bg-cyan-500/30 absolute" />
+              <div className="h-28 w-[1px] bg-cyan-500/30 absolute" />
+            </div>
+
+            {/* Bottom Bar: 1 Å Grid Ruler, 6 Nearest Neighbors & WASD Controls */}
+            <div className="flex flex-wrap items-end justify-between gap-3 pointer-events-auto">
+              
+              {/* Left: 6 Nearest Neighbors with Hydropathy Colors & Distance in Å */}
+              <div className="bg-black/85 backdrop-blur-md border border-zinc-800 p-3 rounded-2xl shadow-xl max-w-md space-y-1.5">
+                <div className="flex items-center justify-between text-[10.5px] text-zinc-400 border-b border-zinc-800 pb-1">
+                  <span className="font-bold text-white">Najbliższe 6 Reszt (w promieniu Å):</span>
+                  <span className="text-zinc-500">Hydrofobowość: Kyte-Doolittle</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {nearestNeighbors.map(nb => (
+                    <div 
+                      key={nb.idx}
+                      onClick={() => jumpToResidueFirstPerson(nb.idx)}
+                      className="p-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-cyan-500 cursor-pointer transition flex items-center justify-between text-[10px]"
+                    >
+                      <span className="font-bold text-zinc-200">#{nb.idx + 1} {nb.code}</span>
+                      <span className={`font-mono font-bold ${nb.hydropathy >= 0 ? 'text-amber-400' : 'text-blue-400'}`}>
+                        {nb.dist} Å
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Scale Slider with Always-Visible 1 Å Ruler + WASD Key Help */}
+              <div className="bg-black/85 backdrop-blur-md border border-zinc-800 p-3 rounded-2xl shadow-xl space-y-2 font-mono">
+                
+                {/* 1 Å Ruler Graphic */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                    <span>Linijka Skali:</span>
+                    <strong className="text-cyan-300">1 Å = 0.1 nm (Siatka 1 Å)</strong>
+                  </div>
+                  {/* Calibrated 1 Å graphical bar */}
+                  <div className="w-56 h-4 bg-zinc-900 border border-zinc-700 rounded relative flex items-center justify-between px-2 text-[9px] text-zinc-400 overflow-hidden">
+                    <div className="absolute inset-y-0 left-0 bg-cyan-500/20" style={{ width: `${Math.min(100, Math.round(microscopeScale * 40))}%` }} />
+                    <span className="z-10">0 Å</span>
+                    <span className="z-10">0.5 Å</span>
+                    <span className="z-10 font-bold text-white">1.0 Å</span>
+                    <span className="z-10">1.5 Å</span>
+                    <span className="z-10">2.0 Å</span>
+                  </div>
+                </div>
+
+                {/* Scale slider */}
+                <div className="flex items-center gap-2 text-[10.5px]">
+                  <span className="text-zinc-400">Skala:</span>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.05"
+                    value={microscopeScale}
+                    onChange={(e) => setMicroscopeScale(parseFloat(e.target.value))}
+                    className="w-28 accent-cyan-400"
+                  />
+                  <span className="text-zinc-200 font-bold w-12">{microscopeScale.toFixed(2)}×</span>
+                </div>
+
+                {/* Controls Legend */}
+                <div className="text-[10px] text-zinc-400 pt-1 border-t border-zinc-800/80 flex items-center justify-between gap-3">
+                  <span>Sterowanie: <strong className="text-zinc-200">WASD</strong> (ruch) • <strong className="text-zinc-200">Mysz / Dotyk</strong> (rozglądanie)</span>
+                  <span className="text-zinc-500">Q/E (góra/dół)</span>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
 
         {/* BOUNDARY CONDITIONS & CD SLIDE-OUT PANEL */}
         {isBoundaryPanelOpen && (

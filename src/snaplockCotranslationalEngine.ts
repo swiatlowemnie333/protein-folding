@@ -356,7 +356,7 @@ export function evaluateRibosomeVsDetachedEnergyLinearization(
       const solFactor = deriveSolubilityBurialFactor(aa.solubility);
       const stiffness = deriveHingeStiffness(aa.chainFlexibility);
       const rotEntropy = deriveRotamerEntropyKcal(aa.rotamerPreferences);
-      const chiralFactor = aa.chirality === 'L' ? 1.0 : 0.62;
+      const chiralFactor = (aa.chirality === 'L' || aa.chirality === 'Brak') ? 1.0 : 0.62;
 
       // Hydrophobic collapse (#10 Kyte) + Hydrophilic surface solvation (#11 Hopp) + Unsatisfied buried polar penalty (#12 solubility, #9 polarity)
       const hydroScale = isTetheredToRibosome ? 0.54 : 1.0;
@@ -498,7 +498,7 @@ export function evaluateRibosomeVsDetachedEnergyLinearization(
       effectiveChargeDetached: parseFloat(postRelaxed.charges[i].toFixed(3)),
       isoelectricGradient: parseFloat(Math.abs(7.4 - aa.pI).toFixed(2)),
       canFormCovalentClamp: aa.covalentBridges.includes('TAK'),
-      chiralAsymmetryFactor: aa.chirality === 'L' ? 1.0 : 0.62,
+      chiralAsymmetryFactor: (aa.chirality === 'L' || aa.chirality === 'Brak') ? 1.0 : 0.62,
       preferredPhiDeg: prefPhi,
       preferredPsiDeg: prefPsi,
       hingeStiffnessKcalRad2: deriveHingeStiffness(aa.chainFlexibility),
