@@ -361,6 +361,7 @@ export interface MultiAgentSimulationOptions {
   hBondScale?: number;        // moduł C: wiązania wodorowe szkieletu (0 = wyłączony)
   contactRestraints?: { i: number; j: number; w?: number }[]; // moduł F: kontakty (koewolucja/DCA lub test kontrolny)
   contactWeight?: number;
+  burialScale?: number; // moduł H: zakopywanie (SASA × hydropatia)
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
 }
@@ -1306,7 +1307,7 @@ export function runMultiAgentFoldingToConvergence(
   }
 
   if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
-    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight });
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale });
   }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
@@ -1328,7 +1329,22 @@ export function runMultiAgentFoldingToConvergence(
 // Wybór ruchów i akceptacja zależą WYŁĄCZNIE od energii — bez dostępu do struktury docelowej.
 export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number; seed?: number;
   // Moduł F: więzy kontaktów (np. z koewolucji / DCA). Para (i,j) "powinna" mieć CA–CA < dMax.
-  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; contactDMax?: number; }
+  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; contactDMax?: number;
+  // Moduł H: zakopywanie wg SASA i hydropatii (efekt hydrofobowy). 0 = wyłączony.
+  burialScale?: number; }
+// Energia zakopania: reszty o dużej, hydrofobowej powierzchni (SASA × Kyte-Doolittle) wolą być w środku (dużo sąsiadów CA w 10 Å).
+export function burialEnergy(sim: any, scale = 1.0): number {
+  const bb = sim.backboneAtoms, ag = sim.agents, n = bb.length; let e = 0;
+  for (let i = 0; i < n; i++) {
+    const a = bb[i]?.CA; if (!a) continue; let cnt = 0;
+    for (let j = 0; j < n; j++) { if (Math.abs(i - j) < 2) continue; const b = bb[j].CA;
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); cnt += 1 / (1 + Math.exp(d - 10)); }
+    const buried = Math.min(1, Math.max(0, (cnt - 6) / 12));
+    const p = ag[i].profile; const h = (p.hydropathyKyte / 4.5) * ((p.sasa ?? 150) / 200);
+    e -= h * buried;
+  }
+  return scale * e;
+}
 // Energia więzów kontaktowych: płaskie dno do dMax, potem rośnie liniowo (odporne na fałszywe kontakty).
 export function contactRestraintEnergy(sim: any, contacts: { i: number; j: number; w?: number }[], weight = 1.0, dMax = 8.0): number {
   let e = 0; const bb = sim.backboneAtoms;
@@ -1340,8 +1356,8 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0;
-  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0); };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0;
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
   const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
   const n = sim.agents.length;

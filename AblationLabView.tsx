@@ -9,13 +9,14 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
   { key: 'D', name: 'GOR', desc: 'Struktura drugorzędowa wyuczona z 691 białek PDB (Q3 62,6%)' },
   { key: 'E', name: 'Monte Carlo', desc: 'Wyżarzanie Monte Carlo w przestrzeni kątów (φ, ψ)' },
-  { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' }
+  { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' },
+  { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' }
 ];
 
 // Kontakty CA–CA < 8 Å, |i-j| >= 6, z pliku PDB (tylko do testu kontrolnego F)
@@ -51,7 +52,8 @@ const DEFAULT_JOURNAL: JournalEntry[] = [
   { date: '2026-11-09', text: 'GOR (struktura drugorzędowa z 691 białek PDB): Q3 62,6% vs 53,5% stara reguła vs 46,1% Chou-Fasman. Sufit metod z jednej sekwencji ~60-65%. Do 3D samo GOR nie wystarcza.' },
   { date: '2026-11-09', text: 'Siatka A/AB/AC/.../ABCD, 5 startów: różnice między wariantami mniejsze niż rozrzut (1-4 Å). Najlepszy trend: lizozym ABCD 14,5±1,3 Å vs A 15,8±1,4 Å; ubikwityna ACD 11,2±1,6 vs A 14,1±2,3. Żaden moduł nie jest jeszcze przełomem. Następny krok: koewolucja (kontakty z rodzin białek).' },
   { date: '2026-11-09', text: 'Moduł F, test kontrolny: nawet PRAWDZIWE kontakty w Monte Carlo dają mało (krambina 8,7 -> 7,2 Å; ubikwityna 10,6 -> 9,4 Å; realistyczne DCA 70%: 7,9 i 10,2 Å). Monte Carlo po jednym kącie nie umie spełnić kontaktów daleko w łańcuchu.' },
-  { date: '2026-11-09', text: 'Moduł G (geometria odległości, poza aplikacją): pełna macierz odległości -> 0,3 Å (optymalizator działa). Same kontakty ~7 Å. Kontakty + pary DALEKO + prawdziwa struktura drugorzędowa -> 4,4 Å. WNIOSEK: kolejność = 1) lepsza struktura drugorzędowa (profil z rodziny białek), 2) przewidywanie odległości, 3) dopiero potem DCA.' }
+  { date: '2026-11-09', text: 'Moduł G (geometria odległości, poza aplikacją): pełna macierz odległości -> 0,3 Å (optymalizator działa). Same kontakty ~7 Å. Kontakty + pary DALEKO + prawdziwa struktura drugorzędowa -> 4,4 Å. WNIOSEK: kolejność = 1) lepsza struktura drugorzędowa (profil z rodziny białek), 2) przewidywanie odległości, 3) dopiero potem DCA.' },
+  { date: '2026-11-09', text: 'Tabela 24 właściwości: w fizyce działa 13, martwych 6 (masa, SASA, polarność, rozpuszczalność, pI, rotamery). Masa nie wpływa na kształt równowagowy. Moduł H (SASA × hydropatia, zakopywanie), 3 starty, MC 10000: krambina 8,56±0,55 -> 8,33±0,52 Å, ubikwityna 11,28±1,45 -> 11,07±0,94 Å = w granicach szumu. Jak przy F: energia ok, przeszukiwanie nie nadąża.' }
 ];
 
 function allConfigs(selected: ModuleKey[]): string[] {
@@ -120,7 +122,8 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: (cfg.includes('E') || cfg.includes('F')) ? mcSteps : 0,
+              monteCarloSteps: (cfg.includes('E') || cfg.includes('F') || cfg.includes('H')) ? mcSteps : 0,
+              burialScale: cfg.includes('H') ? 20 : 0,
               contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined,
               contactWeight: 2.0
             },
