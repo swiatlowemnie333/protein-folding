@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { runMultiAgentFoldingToConvergence } from './src/snaplockMultiAgentEngine';
+import { runMultiAgentFoldingToConvergence, predictSecondaryStructureGOR, pickFragments, annealFragmentsMonteCarlo } from './src/snaplockMultiAgentEngine';
 import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 
 // =====================================================================================
@@ -9,14 +9,15 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
   { key: 'D', name: 'GOR', desc: 'Struktura drugorzędowa wyuczona z 691 białek PDB (Q3 62,6%)' },
   { key: 'E', name: 'Monte Carlo', desc: 'Wyżarzanie Monte Carlo w przestrzeni kątów (φ, ψ)' },
   { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' },
-  { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' }
+  { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' },
+  { key: 'I', name: 'Hybryda: fragmenty PDB', desc: 'Zamiast kręcić jednym kątem, wstawia kawałki 9 i 3 aminokwasów z 255 prawdziwych białek (jak Rosetta), dobrane po sekwencji + GOR. Na ślepo. Biblioteka pobierana z RCSB przy pierwszym użyciu (~20 s).' }
 ];
 
 // Kontakty CA–CA < 8 Å, |i-j| >= 6, z pliku PDB (tylko do testu kontrolnego F)
@@ -32,6 +33,29 @@ function nativeContacts(pdb: string, n: number): { i: number; j: number }[] {
   return out;
 }
 const HISTORY_KEY = 'snaplock_historia_przebiegow_v1';
+
+// ---- Moduł I: biblioteka fragmentów (kąty phi/psi z 255 łańcuchów PDB, pula treningowa GOR bez białek testowych) ----
+const FRAG_IDS = '1O4W,2Z6F,1I2K,1WOL,1M1S,2RIL,2P8G,2QFL,3ES1,2HJN,1U53,1K8U,2RH3,1DIX,2HUH,2OI0,3CBN,12IS,2P14,1YN4,1VJK,3B84,1KP6,2CKK,1DVO,1BYI,1CXC,3EN8,2XPW,1BKB,2HDO,1UFY,2O71,3F6Y,2WND,1UV4,2OPC,3FOV,2YCI,1V77,2EJ9,1VI4,1UXO,2PND,2AJ6,3ESM,2NLR,2YF9,1JNI,1RC9,2AV4,1MG4,2DXA,2SGA,3EO5,2VDF,1RTQ,2BL1,1ZD0,3AV3,2UUR,2VCL,2HSH,3B7H,1EDT,2QSW,1WHO,2IUG,2NPN,1QQF,2GKP,2Y2Z,2HC1,1JBZ,2OSO,2VJW,1KNG,1QCS,2W6K,3CGX,2GYZ,2RBK,1D2T,2PTH,1ES9,2BZG,3BER,2I9I,1QOI,1QCZ,2V2P,1VBW,1BOL,1SFS,2XNQ,3FGH,1VK1,2IW0,2VSD,2ERF,2FMA,3E9V,1Y9L,3AS8,1A1X,2HNG,2VM9,1MOF,2WFO,2Z08,1TUK,2OD5,1G5T,2R16,2GFH,2YCD,3AGN,2V9V,2JEN,2R2Y,2G3A,3CC8,2EWH,1A58,2XDH,2XMF,2DP9,2PQ3,1DG6,1VIN,1R26,1R9W,1JLN,3G85,1DUW,1IFR,1J27,1CI3,2P5K,1B2L,1ZI8,1WLU,2ZZJ,1M1H,1RFE,1IGD,1QAD,1PZW,2Y1B,3ED5,3CHV,1YZF,2AMH,2P84,2CUL,2RKN,2QML,1LMI,1CTF,2C4W,2HSB,2EO4,2NYC,1RUT,1XPH,1KTH,1X3S,2VEB,3FTJ,2OA2,1BRT,1UXX,1BX7,2I9W,1OCY,1DY2,1Q42,3FLJ,2Z98,1YOY,3DHN,2XGR,2RFA,3FDJ,2C07,2IHD,2FJ9,2VXN,2VG9,1M1Q,1XTP,2CWY,1CFB,1SZ7,2DPM,2A4V,2ISB,2V3G,2CYJ,2CBP,1UCS,3BPU,2GKE,1OXJ,3G8Z,1KEA,3EBT,2ZK9,1OSH,3B7C,2O9U,1EP0,1OKS,2YBY,2QHP,2HAQ,1IWL,1U2H,1ZX6,1MVL,1HUW,2YZT,3BYR,2O9S,1BXE,2AR5,2JAY,2ZPM,1ZUH,2Y7B,1J6O,2YYO,2OLG,2OKM,3FGE,2FSR,2C8B,1WQ8,2P25,1S2W,3DEO,3CEC,1FXD,1KQ6,1ZCE,2R0J,3ERS,3E8T,1K4N,1WLJ,1FX2,3D6J,1S7I,1OOT,1WM3'.split(',');
+const FRAG_KEY = 'snaplock_biblioteka_fragmentow_v1';
+const A3: Record<string, string> = { ALA:'A',ARG:'R',ASN:'N',ASP:'D',CYS:'C',GLN:'Q',GLU:'E',GLY:'G',HIS:'H',ILE:'I',LEU:'L',LYS:'K',MET:'M',PHE:'F',PRO:'P',SER:'S',THR:'T',TRP:'W',TYR:'Y',VAL:'V',MSE:'M' };
+async function loadFragmentLibrary(onProgress: (s: string) => void): Promise<{ aa: string; phi: number[]; psi: number[] }> {
+  try { const c = localStorage.getItem(FRAG_KEY); if (c) return JSON.parse(c); } catch { /* ignore */ }
+  const sub = (a: number[], b: number[]) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]], cr = (a: number[], b: number[]) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]], dot = (a: number[], b: number[]) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const dih = (p0: number[], p1: number[], p2: number[], p3: number[]) => { const b0 = sub(p0, p1), b1 = sub(p2, p1), b2 = sub(p3, p2); const n = Math.hypot(b1[0], b1[1], b1[2]); const u = b1.map(x => x / n); const v = sub(b0, u.map(x => x * dot(b0, u))), w = sub(b2, u.map(x => x * dot(b2, u))); return Math.atan2(dot(cr(u, v), w), dot(v, w)) * 180 / Math.PI; };
+  let aa = ''; const phi: number[] = [], psi: number[] = []; let k = 0, done = 0;
+  const one = async (id: string) => {
+    const t = await (await fetch(`https://files.rcsb.org/download/${id}.pdb`)).text(); const res: any[] = []; let chain: string | null = null;
+    for (const l of t.split('\n')) { if (l.startsWith('ENDMDL')) break; if (!(l.startsWith('ATOM') || l.startsWith('HETATM'))) continue; const rn = l.slice(17, 20); if (!A3[rn]) continue; const ch = l[21]; if (chain === null) chain = ch; if (ch !== chain) break; const alt = l[16]; if (alt !== ' ' && alt !== 'A') continue; const key = l.slice(22, 27); let r = res[res.length - 1]; if (!r || r.key !== key) { r = { key, aa: A3[rn] }; res.push(r); } const nm = l.slice(12, 16).trim(); if (nm === 'N' || nm === 'CA' || nm === 'C') r[nm] = [+l.slice(30, 38), +l.slice(38, 46), +l.slice(46, 54)]; }
+    const ok = res.filter(r => r.N && r.CA && r.C); let s = ''; const p: number[] = [], q: number[] = [];
+    for (let i = 0; i < ok.length; i++) { const r = ok[i], a = ok[i - 1], b = ok[i + 1]; const brkP = !a || Math.hypot(...sub(r.N, a.C)) > 2, brkN = !b || Math.hypot(...sub(b.N, r.C)) > 2; s += r.aa; p.push(brkP ? 999 : Math.round(dih(a.C, r.N, r.CA, r.C))); q.push(brkN ? 999 : Math.round(dih(r.N, r.CA, r.C, b.N))); }
+    aa += s + '/'; phi.push(...p, 999); psi.push(...q, 999);
+  };
+  const work = async () => { while (k < FRAG_IDS.length) { const id = FRAG_IDS[k++]; try { await one(id); } catch { /* pomiń */ } done++; onProgress(`Biblioteka fragmentów: ${done}/${FRAG_IDS.length} struktur z PDB`); } };
+  await Promise.all(Array.from({ length: 8 }, work));
+  const lib = { aa, phi, psi }; try { localStorage.setItem(FRAG_KEY, JSON.stringify(lib)); } catch { /* za duże – trzymamy w pamięci */ }
+  return lib;
+}
+const ONE1: Record<string, string> = { ALA:'A',ARG:'R',ASN:'N',ASP:'D',CYS:'C',GLN:'Q',GLU:'E',GLY:'G',HIS:'H',ILE:'I',LEU:'L',LYS:'K',MET:'M',PHE:'F',PRO:'P',SER:'S',THR:'T',TRP:'W',TYR:'Y',VAL:'V' };
 
 const PROTEINS: { key: string; label: string }[] = [
   { key: 'INSULIN_A_21', label: 'Insulina A (21)' },
@@ -53,7 +77,9 @@ const DEFAULT_JOURNAL: JournalEntry[] = [
   { date: '2026-11-09', text: 'Siatka A/AB/AC/.../ABCD, 5 startów: różnice między wariantami mniejsze niż rozrzut (1-4 Å). Najlepszy trend: lizozym ABCD 14,5±1,3 Å vs A 15,8±1,4 Å; ubikwityna ACD 11,2±1,6 vs A 14,1±2,3. Żaden moduł nie jest jeszcze przełomem. Następny krok: koewolucja (kontakty z rodzin białek).' },
   { date: '2026-11-09', text: 'Moduł F, test kontrolny: nawet PRAWDZIWE kontakty w Monte Carlo dają mało (krambina 8,7 -> 7,2 Å; ubikwityna 10,6 -> 9,4 Å; realistyczne DCA 70%: 7,9 i 10,2 Å). Monte Carlo po jednym kącie nie umie spełnić kontaktów daleko w łańcuchu.' },
   { date: '2026-11-09', text: 'Moduł G (geometria odległości, poza aplikacją): pełna macierz odległości -> 0,3 Å (optymalizator działa). Same kontakty ~7 Å. Kontakty + pary DALEKO + prawdziwa struktura drugorzędowa -> 4,4 Å. WNIOSEK: kolejność = 1) lepsza struktura drugorzędowa (profil z rodziny białek), 2) przewidywanie odległości, 3) dopiero potem DCA.' },
-  { date: '2026-11-09', text: 'Tabela 24 właściwości: w fizyce działa 13, martwych 6 (masa, SASA, polarność, rozpuszczalność, pI, rotamery). Masa nie wpływa na kształt równowagowy. Moduł H (SASA × hydropatia, zakopywanie), 3 starty, MC 10000: krambina 8,56±0,55 -> 8,33±0,52 Å, ubikwityna 11,28±1,45 -> 11,07±0,94 Å = w granicach szumu. Jak przy F: energia ok, przeszukiwanie nie nadąża.' }
+  { date: '2026-11-09', text: 'Tabela 24 właściwości: w fizyce działa 13, martwych 6 (masa, SASA, polarność, rozpuszczalność, pI, rotamery). Masa nie wpływa na kształt równowagowy. Moduł H (SASA × hydropatia, zakopywanie), 3 starty, MC 10000: krambina 8,56±0,55 -> 8,33±0,52 Å, ubikwityna 11,28±1,45 -> 11,07±0,94 Å = w granicach szumu. Jak przy F: energia ok, przeszukiwanie nie nadąża.' },
+  { date: '2026-11-09', text: 'Moduł I – HYBRYDA (fragmenty 9/3 z 255 białek PDB, jak Rosetta), 3 starty, 15000 kroków: krambina 8,17 vs zwykłe MC 8,13 Å; ubikwityna 10,93 vs 10,90 Å = bez zmian.' },
+  { date: '2026-11-09', text: 'TEST KLUCZOWY (12 prób, wybór najniższej energii, krambina): najlepsza próba 6,5 Å, ale energia wybrała 8,3 Å. Korelacja energia–RMSD = −0,2 (zero). PRAWDZIWE WĄSKIE GARDŁO: funkcja energii nie odróżnia struktur 6 Å od 9 Å. Następny krok: energia statystyczna wyuczona z PDB (odległości par aminokwasów) i wybór przez klastrowanie prób.' }
 ];
 
 function allConfigs(selected: ModuleKey[]): string[] {
@@ -98,6 +124,8 @@ export default function AblationLabView() {
     const total = configs.length * selectedProteins.length * seeds;
     let done = 0;
     const result: GridRow[] = [];
+    const fragLib = configs.some(c => c.includes('I')) ? await loadFragmentLibrary(setProgress) : null;
+    const fragCache: Record<string, any> = {};
     for (const cfg of configs) {
       const row: GridRow = { cfg, cells: {} };
       for (const key of selectedProteins) {
@@ -122,7 +150,7 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: (cfg.includes('E') || cfg.includes('F') || cfg.includes('H')) ? mcSteps : 0,
+              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H'))) ? mcSteps : 0,
               burialScale: cfg.includes('H') ? 20 : 0,
               contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined,
               contactWeight: 2.0
@@ -130,7 +158,18 @@ export default function AblationLabView() {
             frames,
             3
           );
-          const g: any = run.groundTruthValidation;
+          let g: any = run.groundTruthValidation;
+          if (cfg.includes('I') && fragLib) {
+            if (!fragCache[key]) {
+              const seq1 = spec.sequence3Letter.map((c: string) => ONE1[c] ?? 'X').join('');
+              const ss = predictSecondaryStructureGOR(spec.sequence3Letter).map((x: string) => x[0] === 'H' ? 'H' : x[0] === 'S' ? 'E' : 'C').join('');
+              fragCache[key] = { f9: pickFragments(fragLib, seq1, ss, 9), f3: pickFragments(fragLib, seq1, ss, 3) };
+            }
+            const sim: any = (run as any).simulation;
+            annealFragmentsMonteCarlo(sim, fragLib, fragCache[key].f9, fragCache[key].f3, { steps: mcSteps, seed,
+              contacts: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined, burialScale: cfg.includes('H') ? 20 : 0 });
+            g = sim.exportFinalAllAtomAndValidate().groundTruthValidation;
+          }
           if (g && g.caRmsdAngstrom != null) { r.push(g.caRmsdAngstrom); t.push(g.tmScore ?? 0); }
           done++;
         }

@@ -1415,3 +1415,72 @@ export function predictSecondaryStructureGOR(seq3: string[]): ('HELIX' | 'SHEET'
   clean('H', 4); clean('E', 2);
   return o.map(s => (s === 'H' ? 'HELIX' : s === 'E' ? 'SHEET' : 'COIL'));
 }
+
+
+// =====================================================================================
+// HYBRYDA: fizyka SNAPLOCK + wstawianie fragmentów z prawdziwych białek (jak Rosetta).
+// Biblioteka: kąty (phi, psi) z 255 łańcuchów PDB (pula treningowa GOR, bez białek testowych).
+// Fragmenty dobierane WYŁĄCZNIE po sekwencji + przewidzianej strukturze drugorzędowej (na ślepo).
+// =====================================================================================
+
+export interface FragmentLibrary { aa: string; phi: number[]; psi: number[]; }
+export interface FragmentSet { k: number; frags: number[][]; } // frags[q] = lista startów w bibliotece
+
+const B62ORD = 'ARNDCQEGHILKMFPSTWYV';
+const B62 = `4 -1 -2 -2 0 -1 -1 0 -2 -1 -1 -1 -1 -2 -1 1 0 -3 -2 0|-1 5 0 -2 -3 1 0 -2 0 -3 -2 2 -1 -3 -2 -1 -1 -3 -2 -3|-2 0 6 1 -3 0 0 0 1 -3 -3 0 -2 -3 -2 1 0 -4 -2 -3|-2 -2 1 6 -3 0 2 -1 -1 -3 -4 -1 -3 -3 -1 0 -1 -4 -3 -3|0 -3 -3 -3 9 -3 -4 -3 -3 -1 -1 -3 -1 -2 -3 -1 -1 -2 -2 -1|-1 1 0 0 -3 5 2 -2 0 -3 -2 1 0 -3 -1 0 -1 -2 -1 -2|-1 0 0 2 -4 2 5 -2 0 -3 -3 1 -2 -3 -1 0 -1 -3 -2 -2|0 -2 0 -1 -3 -2 -2 6 -2 -4 -4 -2 -3 -3 -2 0 -2 -2 -3 -3|-2 0 1 -1 -3 0 0 -2 8 -3 -3 -1 -2 -1 -2 -1 -2 -2 2 -3|-1 -3 -3 -3 -1 -3 -3 -4 -3 4 2 -3 1 0 -3 -2 -1 -3 -1 3|-1 -2 -3 -4 -1 -2 -3 -4 -3 2 4 -2 2 0 -3 -2 -1 -2 -1 1|-1 2 0 -1 -3 1 1 -2 -1 -3 -2 5 -1 -3 -1 0 -1 -3 -2 -2|-1 -1 -2 -3 -1 0 -2 -3 -2 1 2 -1 5 0 -2 -1 -1 -1 -1 1|-2 -3 -3 -3 -2 -3 -3 -3 -1 0 0 -3 0 6 -4 -2 -2 1 3 -1|-1 -2 -2 -1 -3 -1 -1 -2 -2 -3 -3 -1 -2 -4 7 -1 -1 -4 -3 -2|1 -1 1 0 -1 0 0 0 -1 -2 -2 0 -1 -2 -1 4 1 -3 -2 -2|0 -1 0 -1 -1 -1 -1 -2 -2 -1 -1 -1 -1 -2 -1 1 5 -2 -2 0|-3 -3 -4 -4 -2 -2 -3 -2 -2 -3 -2 -3 -1 1 -4 -3 -2 11 2 -3|-2 -2 -2 -3 -2 -1 -2 -3 2 -1 -1 -2 -1 3 -3 -2 -2 2 7 -1|0 -3 -3 -3 -1 -2 -2 -3 -3 3 1 -2 1 -1 -2 -2 0 -3 -1 4`.split('|').map(r => r.split(' ').map(Number));
+const bl = (a: string, b: string) => { const i = B62ORD.indexOf(a), j = B62ORD.indexOf(b); return i < 0 || j < 0 ? -1 : B62[i][j]; };
+const ssOf = (phi: number, psi: number) => (phi > -100 && phi < -30 && psi > -80 && psi < -10) ? 'H' : (phi < -80 && (psi > 90 || psi < -150)) ? 'E' : 'C';
+
+/** Dobór fragmentów: dla każdej pozycji zapytania top-N okien biblioteki wg BLOSUM62 + zgodności struktury drugorzędowej. */
+export function pickFragments(lib: FragmentLibrary, seq1: string, ss: string, k: number, topN = 25, ssWeight = 2.0): FragmentSet {
+  const L = lib.aa.length, libSS = lib.phi.map((p, i) => ssOf(p, lib.psi[i]));
+  const valid: number[] = [];
+  for (let w = 0; w + k <= L; w++) { let ok = true; for (let t = 0; t < k; t++) if (lib.aa[w + t] === '/' || lib.phi[w + t] === 999 || lib.psi[w + t] === 999) { ok = false; break; } if (ok) valid.push(w); }
+  const frags: number[][] = [];
+  for (let q = 0; q + k <= seq1.length; q++) {
+    const best: [number, number][] = [];
+    for (const w of valid) {
+      let s = 0; for (let t = 0; t < k; t++) { s += bl(seq1[q + t], lib.aa[w + t]); if (ss[q + t] === libSS[w + t]) s += ssWeight; }
+      if (best.length < topN) { best.push([s, w]); if (best.length === topN) best.sort((a, b) => a[0] - b[0]); }
+      else if (s > best[0][0]) { best[0] = [s, w]; best.sort((a, b) => a[0] - b[0]); }
+    }
+    frags.push(best.map(b => b[1]));
+  }
+  return { k, frags };
+}
+
+export interface HybridOptions { steps?: number; seed?: number; tStart?: number; tEnd?: number;
+  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; burialScale?: number; smallMoveFraction?: number; }
+
+/** Monte Carlo z wstawianiem fragmentów: 1. połowa 9-mery, 2. połowa 3-mery + drobne ruchy. Energia = energia silnika (+ moduły F/H). */
+export function annealFragmentsMonteCarlo(sim: any, lib: FragmentLibrary, f9: FragmentSet, f3: FragmentSet, opts: HybridOptions = {}) {
+  const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2, small = opts.smallMoveFraction ?? 0.2;
+  let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
+  const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, bs = opts.burialScale ?? 0;
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw) : 0) + (bs ? burialEnergy(sim, bs) : 0); };
+  const ags = sim.agents, n = ags.length;
+  sim.rebuildBackboneNeRF();
+  let E = energy(), bestE = E, best = ags.map((g: any) => [g.phiDeg, g.psiDeg]), acc = 0;
+  for (let s = 0; s < steps; s++) {
+    const T = t0 * Math.pow(t1 / t0, s / steps);
+    const set = s < steps / 2 ? f9 : f3;
+    const saved: [number, number, number][] = [];
+    if (rnd() < small) {
+      const i = 1 + Math.floor(rnd() * (n - 2)); saved.push([i, ags[i].phiDeg, ags[i].psiDeg]);
+      ags[i].phiDeg = ((ags[i].phiDeg + (rnd() - 0.5) * 30 + 540) % 360) - 180; ags[i].psiDeg = ((ags[i].psiDeg + (rnd() - 0.5) * 30 + 540) % 360) - 180;
+    } else {
+      const q = Math.floor(rnd() * set.frags.length), list = set.frags[q]; if (!list || !list.length) continue;
+      const w = list[Math.floor(rnd() * list.length)];
+      for (let t = 0; t < set.k; t++) { const i = q + t; saved.push([i, ags[i].phiDeg, ags[i].psiDeg]); ags[i].phiDeg = lib.phi[w + t]; ags[i].psiDeg = lib.psi[w + t]; }
+    }
+    for (const [i] of saved) if (ags[i].profile.code3 === 'PRO') ags[i].phiDeg = -65;
+    sim.rebuildBackboneNeRF();
+    const E2 = energy();
+    if (E2 <= E || rnd() < Math.exp(-(E2 - E) / T)) { E = E2; acc++; if (E < bestE) { bestE = E; best = ags.map((g: any) => [g.phiDeg, g.psiDeg]); } }
+    else { for (const [i, p, q] of saved) { ags[i].phiDeg = p; ags[i].psiDeg = q; } }
+  }
+  ags.forEach((g: any, k: number) => { g.phiDeg = best[k][0]; g.psiDeg = best[k][1]; });
+  sim.rebuildBackboneNeRF();
+  return { bestEnergyKcal: bestE, acceptanceRate: acc / steps };
+}
