@@ -357,6 +357,8 @@ export interface MultiAgentSimulationOptions {
   enableTargetGuidedRefinement?: boolean;
   randomSeed?: number;        // multi-start: seed for initial torsion perturbation
   initialNoiseDeg?: number;   // multi-start: amplitude of random initial (phi, psi) perturbation
+  mjContactScale?: number;    // moduł B: Miyazawa-Jernigan (0 = wyłączony)
+  hBondScale?: number;        // moduł C: wiązania wodorowe szkieletu (0 = wyłączony)
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
 }
@@ -434,6 +436,8 @@ export class MultiAgentFoldingSimulation {
   public postReleaseStepCounter: number = 0;
 
   private backboneAtoms: BackboneResidueAtoms[] = [];
+  private mjScale = MJ_SCALE;
+  private hbScale = HB_SCALE;
   private refCaCoords: Vec3[] | null = null;
   private refPairDistMatrix: number[][] | null = null;
   private readonly referencePdbText: string | null;
@@ -457,6 +461,9 @@ export class MultiAgentFoldingSimulation {
     this.agents = this.sequenceCodes.map(
       (code3, idx) => new ResidueAgent(idx, n, code3, motifs[idx])
     );
+
+    this.mjScale = options.mjContactScale ?? MJ_SCALE;
+    this.hbScale = options.hBondScale ?? HB_SCALE;
 
     if (options.randomSeed !== undefined && (options.initialNoiseDeg ?? 0) > 0) {
       let a = (options.randomSeed >>> 0) + 0x6d2b79f5;
@@ -788,7 +795,7 @@ export class MultiAgentFoldingSimulation {
           vdwEnergy += 2.9 * overlap * overlap;
         } else if (d < 9.5 && !isSsPair) {
           // Gentle VdW dispersion + pairwise hydrophobic droplet attraction
-          const mjScale = MJ_SCALE;
+          const mjScale = this.mjScale;
           if (mjScale > 0 && isSoapBubbleActive && j - i >= 3) {
             // Miyazawa-Jernigan 1996 contact energy (RT units -> kcal/mol via RT=0.593), Gaussian well at Calpha-Calpha ~6.0 A
             const eij = (MJ96_EIJ[agI.profile.code3]?.[agJ.profile.code3] ?? -2.0) * 0.593 * mjScale;
@@ -818,7 +825,7 @@ export class MultiAgentFoldingSimulation {
         }
 
         // A2. Backbone hydrogen bonds O(i)...N(j) (helices i->i+4, sheets |i-j|>=3), Gaussian well at 2.9 A
-        if (HB_SCALE > 0 && isSoapBubbleActive && j - i >= 3) {
+        if (this.hbScale > 0 && isSoapBubbleActive && j - i >= 3) {
           const bbI = this.backboneAtoms[i], bbJ = this.backboneAtoms[j];
           for (const [oAt, nAt, agO, agN] of [[bbI.O, bbJ.N, agI, agJ], [bbJ.O, bbI.N, agJ, agI]] as const) {
             if (!oAt || !nAt) continue;
@@ -826,7 +833,7 @@ export class MultiAgentFoldingSimulation {
             const r = Math.max(1e-3, Math.hypot(hx, hy, hz));
             if (r > 4.5) continue;
             const g = Math.exp(-Math.pow((r - 2.9) / 0.45, 2));
-            const e = -HB_SCALE * g;
+            const e = -this.hbScale * g;
             const dEdr = e * (-2 * (r - 2.9) / (0.45 * 0.45));
             const vx = hx / r, vy = hy / r, vz = hz / r; // O -> N
             agO.soapBubbleForce[0] += vx * dEdr; agO.soapBubbleForce[1] += vy * dEdr; agO.soapBubbleForce[2] += vz * dEdr;
