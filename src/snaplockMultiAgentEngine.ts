@@ -359,6 +359,8 @@ export interface MultiAgentSimulationOptions {
   initialNoiseDeg?: number;   // multi-start: amplitude of random initial (phi, psi) perturbation
   mjContactScale?: number;    // moduł B: Miyazawa-Jernigan (0 = wyłączony)
   hBondScale?: number;        // moduł C: wiązania wodorowe szkieletu (0 = wyłączony)
+  contactRestraints?: { i: number; j: number; w?: number }[]; // moduł F: kontakty (koewolucja/DCA lub test kontrolny)
+  contactWeight?: number;
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
 }
@@ -1304,7 +1306,7 @@ export function runMultiAgentFoldingToConvergence(
   }
 
   if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
-    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1 });
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight });
   }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
@@ -1324,12 +1326,22 @@ export function runMultiAgentFoldingToConvergence(
 // ---------------------------------------------------------------------------
 // Monte Carlo simulated annealing w przestrzeni kątów (phi, psi) na energii silnika multi-agent.
 // Wybór ruchów i akceptacja zależą WYŁĄCZNIE od energii — bez dostępu do struktury docelowej.
-export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number; seed?: number; }
+export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number; seed?: number;
+  // Moduł F: więzy kontaktów (np. z koewolucji / DCA). Para (i,j) "powinna" mieć CA–CA < dMax.
+  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; contactDMax?: number; }
+// Energia więzów kontaktowych: płaskie dno do dMax, potem rośnie liniowo (odporne na fałszywe kontakty).
+export function contactRestraintEnergy(sim: any, contacts: { i: number; j: number; w?: number }[], weight = 1.0, dMax = 8.0): number {
+  let e = 0; const bb = sim.backboneAtoms;
+  for (const c of contacts) { const a = bb[c.i]?.CA, b = bb[c.j]?.CA; if (!a || !b) continue;
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); if (d > dMax) e += (c.w ?? 1) * Math.min(d - dMax, 12); }
+  return weight * e;
+}
 export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy; };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0;
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
   const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
   const n = sim.agents.length;

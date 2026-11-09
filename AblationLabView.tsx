@@ -9,13 +9,28 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
   { key: 'D', name: 'GOR', desc: 'Struktura drugorzędowa wyuczona z 691 białek PDB (Q3 62,6%)' },
-  { key: 'E', name: 'Monte Carlo', desc: 'Wyżarzanie Monte Carlo w przestrzeni kątów (φ, ψ)' }
+  { key: 'E', name: 'Monte Carlo', desc: 'Wyżarzanie Monte Carlo w przestrzeni kątów (φ, ψ)' },
+  { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' }
 ];
+
+// Kontakty CA–CA < 8 Å, |i-j| >= 6, z pliku PDB (tylko do testu kontrolnego F)
+function nativeContacts(pdb: string, n: number): { i: number; j: number }[] {
+  const ca: number[][] = []; const seen = new Set<number>();
+  for (const l of (pdb || '').split('\n')) {
+    if (!l.startsWith('ATOM') || l.slice(12, 16).trim() !== 'CA' || !(l[16] === ' ' || l[16] === 'A')) continue;
+    const r = +l.slice(22, 26); if (seen.has(r)) continue; seen.add(r);
+    ca.push([+l.slice(30, 38), +l.slice(38, 46), +l.slice(46, 54)]);
+  }
+  const m = Math.min(n, ca.length), out: { i: number; j: number }[] = [];
+  for (let i = 0; i < m; i++) for (let j = i + 6; j < m; j++) if (Math.hypot(ca[i][0] - ca[j][0], ca[i][1] - ca[j][1], ca[i][2] - ca[j][2]) < 8) out.push({ i, j });
+  return out;
+}
+const HISTORY_KEY = 'snaplock_historia_przebiegow_v1';
 
 const PROTEINS: { key: string; label: string }[] = [
   { key: 'INSULIN_A_21', label: 'Insulina A (21)' },
@@ -34,7 +49,9 @@ const DEFAULT_JOURNAL: JournalEntry[] = [
   { date: '2026-11-08', text: 'BŁĄD KRYTYCZNY naprawiony: budowa łańcucha (NeRF) liczyła ψ względem C(i-2) zamiast N(i-1). Odbudowa prawdziwej krambiny z jej kątów: 7,84 Å -> 1,33 Å.' },
   { date: '2026-11-08', text: 'Test energii: prawdziwa struktura ma NIŻSZĄ energię niż wynik silnika (krambina, ubikwityna, lizozym). Wzory energii idą w dobrą stronę; wąskie gardło = przeszukiwanie.' },
   { date: '2026-11-09', text: 'GOR (struktura drugorzędowa z 691 białek PDB): Q3 62,6% vs 53,5% stara reguła vs 46,1% Chou-Fasman. Sufit metod z jednej sekwencji ~60-65%. Do 3D samo GOR nie wystarcza.' },
-  { date: '2026-11-09', text: 'Siatka A/AB/AC/.../ABCD, 5 startów: różnice między wariantami mniejsze niż rozrzut (1-4 Å). Najlepszy trend: lizozym ABCD 14,5±1,3 Å vs A 15,8±1,4 Å; ubikwityna ACD 11,2±1,6 vs A 14,1±2,3. Żaden moduł nie jest jeszcze przełomem. Następny krok: koewolucja (kontakty z rodzin białek).' }
+  { date: '2026-11-09', text: 'Siatka A/AB/AC/.../ABCD, 5 startów: różnice między wariantami mniejsze niż rozrzut (1-4 Å). Najlepszy trend: lizozym ABCD 14,5±1,3 Å vs A 15,8±1,4 Å; ubikwityna ACD 11,2±1,6 vs A 14,1±2,3. Żaden moduł nie jest jeszcze przełomem. Następny krok: koewolucja (kontakty z rodzin białek).' },
+  { date: '2026-11-09', text: 'Moduł F, test kontrolny: nawet PRAWDZIWE kontakty w Monte Carlo dają mało (krambina 8,7 -> 7,2 Å; ubikwityna 10,6 -> 9,4 Å; realistyczne DCA 70%: 7,9 i 10,2 Å). Monte Carlo po jednym kącie nie umie spełnić kontaktów daleko w łańcuchu.' },
+  { date: '2026-11-09', text: 'Moduł G (geometria odległości, poza aplikacją): pełna macierz odległości -> 0,3 Å (optymalizator działa). Same kontakty ~7 Å. Kontakty + pary DALEKO + prawdziwa struktura drugorzędowa -> 4,4 Å. WNIOSEK: kolejność = 1) lepsza struktura drugorzędowa (profil z rodziny białek), 2) przewidywanie odległości, 3) dopiero potem DCA.' }
 ];
 
 function allConfigs(selected: ModuleKey[]): string[] {
@@ -64,6 +81,8 @@ export default function AblationLabView() {
     try { const raw = localStorage.getItem(JOURNAL_KEY); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
     return DEFAULT_JOURNAL;
   });
+  // dopisz nowe wnioski domyślne, których jeszcze nie ma w zapisanym dzienniku
+  useEffect(() => { setJournal(j => { const missing = DEFAULT_JOURNAL.filter(d => !j.some(x => x.text === d.text)); return missing.length ? [...missing.reverse(), ...j] : j; }); }, []);
   const [newNote, setNewNote] = useState('');
   useEffect(() => { try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); } catch { /* ignore */ } }, [journal]);
 
@@ -101,7 +120,9 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: cfg.includes('E') ? mcSteps : 0
+              monteCarloSteps: (cfg.includes('E') || cfg.includes('F')) ? mcSteps : 0,
+              contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined,
+              contactWeight: 2.0
             },
             frames,
             3
@@ -117,6 +138,21 @@ export default function AblationLabView() {
       if (stopRef.current) break;
     }
     setProgress(stopRef.current ? 'Zatrzymano.' : `Gotowe: ${result.length} wariantów × ${selectedProteins.length} białek × ${seeds} startów.`);
+    // UCZENIE: każdy pełny przebieg zostaje w historii i dopisuje automatyczny wniosek do dziennika
+    if (!stopRef.current && result.length) {
+      const date = new Date().toISOString().slice(0, 10);
+      try { const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); h.push({ date, seeds, mcSteps, frames, rows: result }); localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-200))); } catch { /* ignore */ }
+      const a = result.find(r => r.cfg === 'A');
+      const parts = selectedProteins.map(key => {
+        const best = [...result].filter(r => r.cells[key]?.n).sort((x, y) => x.cells[key].rmsdMean - y.cells[key].rmsdMean)[0];
+        if (!best) return '';
+        const b = best.cells[key], base = a?.cells[key];
+        let tag = '';
+        if (base && best.cfg !== 'A') { const noise = Math.sqrt((base.rmsdSd ** 2 + b.rmsdSd ** 2) / Math.max(1, Math.min(base.n, b.n))); const diff = base.rmsdMean - b.rmsdMean; tag = diff > 2 * noise ? ' (LEPIEJ niż A)' : ' (w granicach szumu)'; }
+        return `${key}: najlepszy ${best.cfg} ${b.rmsdMean.toFixed(2)}±${b.rmsdSd.toFixed(2)} Å` + (base ? ` vs A ${base.rmsdMean.toFixed(2)}` : '') + tag;
+      }).filter(Boolean);
+      setJournal(j => [{ date, text: `[auto] Siatka ${result.map(r => r.cfg).join('/')}, ${seeds} startów, MC ${mcSteps}: ` + parts.join('; ') }, ...j]);
+    }
     setRunning(false);
   };
 
