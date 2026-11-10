@@ -70,6 +70,9 @@ interface JournalEntry { date: string; text: string; }
 
 const JOURNAL_KEY = 'snaplock_dziennik_wnioskow_v1';
 const DEFAULT_JOURNAL: JournalEntry[] = [
+  { date: '2026-11-10', text: 'ESMFold (API ESM Atlas, darmowe, bez klucza) zmierzony na prawdziwych strukturach PDB: ubikwityna 0,83 Å (pLDDT 91), krambina 7,86 Å (pLDDT 50). Nasz najlepszy na krambinie: FRAG+K r1 7,53 ± 1,15 Å (12 startów) – na równi z ESMFold. Ubikwitynę ESMFold prawie na pewno widział w treningu, więc to nie jest uczciwe porównanie de novo.' },
+  { date: '2026-11-10', text: 'Replikacja 12 startów: krambina MC 8,71 ± 0,51 → FRAG+K r1 7,53 ± 1,15 Å (p≈0,006), r2phys 7,85 ± 0,93 (p≈0,01). Ubikwityna bez poprawy (MC 11,31 → K 12,3): fałszywe minimum energii (natywna E −107,0 vs wabiki −110,9). Hipoteza: brakuje członu parowania nici β (ubikwityna 38% β).' },
+  { date: '2026-11-10', text: 'Energia wyuczona r2phys z ograniczeniami znaków (VdW ≥ 0,3; mostki, wiązania H, pary PDB ≥ 0): natywna w top-3 w 42/45 białek CV, na 1. miejscu na obu białkach testowych. Runda 3 bez ograniczeń się wysypała (ujemna waga mostków) – odrzucona.' },
   { date: '2026-11-08', text: 'Tabela 24 właściwości: większość wartości zgodna z literaturą. Poprawione: LYS objętość 135 Å³ (Richards), SASA wg Millera 1987, HIS ładunek 0,04, chiralność GLY. Wpływ na RMSD: w granicach szumu.' },
   { date: '2026-11-08', text: 'BŁĄD KRYTYCZNY naprawiony: budowa łańcucha (NeRF) liczyła ψ względem C(i-2) zamiast N(i-1). Odbudowa prawdziwej krambiny z jej kątów: 7,84 Å -> 1,33 Å.' },
   { date: '2026-11-08', text: 'Test energii: prawdziwa struktura ma NIŻSZĄ energię niż wynik silnika (krambina, ubikwityna, lizozym). Wzory energii idą w dobrą stronę; wąskie gardło = przeszukiwanie.' },
@@ -85,6 +88,43 @@ const DEFAULT_JOURNAL: JournalEntry[] = [
   { date: '2026-11-09', text: 'BŁĄD POMIARU naprawiony: MJ i wiązania H liczą się w składniku soap, a wcześniejsze testy decoyów miały je wyłączone. Poprawnie policzona energia silnika koreluje z RMSD: krambina +0,59, ubikwityna +0,35 (nie −0,2).' },
   { date: '2026-11-09', text: 'UCZENIE WAG (9 składników energii, 47 białek PDB, ~20 struktur każde: natywna + bliskie + hybryda; ranking parami). Walidacja krzyżowa na 45 białkach: prawdziwa struktura w top-3 w 24/45 przypadków (silnik: 9/45) = 2,7× lepiej. Test ubikwityna: korelacja +0,35 -> +0,58; krambina: natywna z 4. na 1. miejsce. ALE: wśród samych złych prób (>8 Å) żadna energia nie wybiera lepiej niż los. Wniosek: energia już rozpoznaje naturę; teraz przeszukiwanie musi dojść w jej pobliże (lejek).' }
 ];
+
+// ---- Poprzeczka ESMFold: CA-RMSD po optymalnym nałożeniu (kwaterniony Horna) + średnie pLDDT ----
+function caCoords(pdb: string): { xyz: number[][]; b: number[] } {
+  const xyz: number[][] = []; const b: number[] = []; const seen = new Set<string>(); let chain = '';
+  for (const l of (pdb || '').split('\n')) {
+    if (!l.startsWith('ATOM') || l.slice(12, 16).trim() !== 'CA' || !(l[16] === ' ' || l[16] === 'A')) continue;
+    if (!chain) chain = l[21]; if (l[21] !== chain) continue;
+    const id = l.slice(22, 27); if (seen.has(id)) continue; seen.add(id);
+    xyz.push([+l.slice(30, 38), +l.slice(38, 46), +l.slice(46, 54)]); b.push(+l.slice(60, 66));
+  }
+  return { xyz, b };
+}
+function optimalRmsd(P: number[][], Q: number[][]): number {
+  const n = Math.min(P.length, Q.length); if (n < 3) return NaN;
+  const c = (A: number[][]) => [0, 1, 2].map(k => A.slice(0, n).reduce((s, p) => s + p[k], 0) / n);
+  const cp = c(P), cq = c(Q);
+  const X = P.slice(0, n).map(p => p.map((x, k) => x - cp[k])), Y = Q.slice(0, n).map(p => p.map((x, k) => x - cq[k]));
+  const S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let i = 0; i < n; i++) for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) S[a][b] += X[i][a] * Y[i][b];
+  const [[xx, xy, xz], [yx, yy, yz], [zx, zy, zz]] = S;
+  const N = [[xx + yy + zz, yz - zy, zx - xz, xy - yx], [yz - zy, xx - yy - zz, xy + yx, zx + xz], [zx - xz, xy + yx, -xx + yy - zz, yz + zy], [xy - yx, zx + xz, yz + zy, -xx - yy + zz]];
+  const e0 = X.reduce((s, p) => s + p[0] ** 2 + p[1] ** 2 + p[2] ** 2, 0) + Y.reduce((s, p) => s + p[0] ** 2 + p[1] ** 2 + p[2] ** 2, 0);
+  let q = [0.5, 0.5, 0.5, 0.5];
+  for (let it = 0; it < 20000; it++) { const w = N.map((r, i) => r.reduce((s, x, j) => s + x * q[j], 0) + e0 * q[i]); const no = Math.hypot(...w); q = w.map(x => x / no); }
+  const lam = N.map(r => r.reduce((s, x, j) => s + x * q[j], 0)).reduce((s, x, j) => s + x * q[j], 0);
+  return Math.sqrt(Math.max(0, (e0 - 2 * lam) / n));
+}
+async function esmfoldPdb(seq1: string): Promise<string> {
+  try {
+    const r = await fetch('/api/esmfold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sequence: seq1 }) });
+    const d = await r.json(); if (r.ok && d.pdb) return d.pdb;
+  } catch { /* spróbuj bezpośrednio */ }
+  const r2 = await fetch('https://api.esmatlas.com/foldSequence/v1/pdb/', { method: 'POST', body: seq1 });
+  if (!r2.ok) throw new Error('ESMFold HTTP ' + r2.status);
+  return r2.text();
+}
+interface EsmRow { key: string; n: number; esmRmsd: number; plddt: number; ours: number | null; oursCfg: string; }
 
 function allConfigs(selected: ModuleKey[]): string[] {
   const out: string[] = [];
@@ -108,6 +148,31 @@ export default function AblationLabView() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState('');
   const stopRef = useRef(false);
+  const [esmRows, setEsmRows] = useState<EsmRow[]>([]);
+  const [esmBusy, setEsmBusy] = useState(false);
+  const runEsmBaseline = async () => {
+    setEsmBusy(true); setEsmRows([]);
+    const out: EsmRow[] = [];
+    for (const key of selectedProteins) {
+      const spec: any = (GLOBAL_PROTEIN_TARGETS as any)[key]; if (!spec) continue;
+      const seq1 = spec.sequence3Letter.map((c: string) => ONE1[c] ?? 'X').join('');
+      setProgress('ESMFold · ' + key);
+      try {
+        const pdb = await esmfoldPdb(seq1);
+        const P = caCoords(pdb), Q = caCoords(spec.referencePdbText);
+        const pl = P.b.length ? P.b.reduce((a, x) => a + x, 0) / P.b.length : 0;
+        let ours: number | null = null, oursCfg = '';
+        for (const r of rows) { const c = r.cells[key]; if (c && (ours === null || c.rmsdMean < ours)) { ours = c.rmsdMean; oursCfg = r.cfg; } }
+        out.push({ key, n: Math.min(P.xyz.length, Q.xyz.length), esmRmsd: optimalRmsd(P.xyz, Q.xyz), plddt: pl <= 1 ? pl * 100 : pl, ours, oursCfg });
+        setEsmRows([...out]);
+      } catch (e: any) { setProgress('ESMFold błąd: ' + (e?.message || e)); }
+    }
+    if (out.length) {
+      const date = new Date().toISOString().slice(0, 10);
+      setJournal(j => [{ date, text: '[auto] Poprzeczka ESMFold (AI Mety, nie na ślepo: model mógł widzieć te białka w treningu): ' + out.map(r => r.key + ' ' + r.esmRmsd.toFixed(2) + ' Å, pLDDT ' + r.plddt.toFixed(0) + (r.ours !== null ? ' vs nasz ' + r.oursCfg + ' ' + r.ours.toFixed(2) + ' Å' : '')).join('; ') }, ...j]);
+    }
+    setProgress(''); setEsmBusy(false);
+  };
 
   const [journal, setJournal] = useState<JournalEntry[]>(() => {
     try { const raw = localStorage.getItem(JOURNAL_KEY); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
@@ -304,6 +369,25 @@ export default function AblationLabView() {
           </table>
         </div>
       )}
+
+      <div className="border border-sky-900 rounded p-3 space-y-2">
+        <div className="flex justify-between items-center gap-2">
+          <div className="font-bold text-white">Poprzeczka: ESMFold (AI Mety) dla zaznaczonych białek</div>
+          <button className="px-3 py-1 rounded bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white" disabled={esmBusy || running} onClick={runEsmBaseline}>{esmBusy ? 'Liczę…' : 'Policz ESMFold'}</button>
+        </div>
+        <p className="text-zinc-400">To NIE jest wynik na ślepo: ESMFold uczył się na PDB i mógł widzieć te białka. Służy jako uczciwa poprzeczka. pLDDT = pewność modelu (0–100); poniżej 70 model zgaduje. „Nasz” = najlepszy wariant z siatki powyżej (uruchom siatkę, żeby porównać).</p>
+        {esmRows.length > 0 && (
+          <table className="w-full text-left">
+            <thead><tr className="text-zinc-400"><th>Białko</th><th>reszt</th><th>ESMFold RMSD</th><th>pLDDT</th><th>Nasz najlepszy</th></tr></thead>
+            <tbody>{esmRows.map(r => (
+              <tr key={r.key} className="border-t border-zinc-800">
+                <td>{r.key}</td><td>{r.n}</td><td>{r.esmRmsd.toFixed(2)} Å</td>
+                <td className={r.plddt >= 70 ? 'text-emerald-300' : 'text-amber-300'}>{r.plddt.toFixed(0)}</td>
+                <td>{r.ours !== null ? <span className={r.ours <= r.esmRmsd ? 'text-emerald-300 font-bold' : ''}>{r.ours.toFixed(2)} Å ({r.oursCfg}){r.ours <= r.esmRmsd ? ' ✓ lepiej lub równo' : ''}</span> : '—'}</td>
+              </tr>))}</tbody>
+          </table>
+        )}
+      </div>
 
       <div className="border border-zinc-800 rounded p-3 space-y-2">
         <div className="font-bold text-white">Dziennik wniosków (zapisujemy, nie wdrażamy bez dowodu)</div>
