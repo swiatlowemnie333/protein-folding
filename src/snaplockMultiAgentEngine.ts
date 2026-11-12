@@ -362,6 +362,8 @@ export interface MultiAgentSimulationOptions {
   contactRestraints?: { i: number; j: number; w?: number }[]; // moduł F: kontakty (koewolucja/DCA lub test kontrolny)
   contactWeight?: number;
   burialScale?: number; // moduł H: zakopywanie (SASA × hydropatia)
+  betaScale?: number; // moduł P: parowanie nici β (drabinki CA), 0 = wyłączony
+  betaSS?: string;    // przewidziana struktura drugorzędowa (H/E/C) – z GOR, na ślepo
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
 }
@@ -1307,7 +1309,7 @@ export function runMultiAgentFoldingToConvergence(
   }
 
   if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
-    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale });
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale, betaScale: options.betaScale, betaSS: options.betaSS });
   }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
@@ -1331,8 +1333,28 @@ export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number;
   // Moduł F: więzy kontaktów (np. z koewolucji / DCA). Para (i,j) "powinna" mieć CA–CA < dMax.
   contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; contactDMax?: number;
   // Moduł H: zakopywanie wg SASA i hydropatii (efekt hydrofobowy). 0 = wyłączony.
-  burialScale?: number; }
+  burialScale?: number;
+  // Moduł P: parowanie nici β. 0 = wyłączony.
+  betaScale?: number; betaSS?: string; }
 // Energia zakopania: reszty o dużej, hydrofobowej powierzchni (SASA × Kyte-Doolittle) wolą być w środku (dużo sąsiadów CA w 10 Å).
+// Moduł P: energia parowania nici β. Nagradza „drabinki”: para CA(i)–CA(j) bliżej niż ~5,5 Å
+// razem z sąsiednią parą (i±1, j∓1 antyrównolegle albo i±1, j±1 równolegle). Waga wyższa dla reszt,
+// które GOR przewiduje jako nić (E). Na ślepo: używa tylko sekwencji/GOR, nie struktury docelowej.
+export function betaPairEnergy(sim: any, ss: string, scale = 1.0): number {
+  const bb = sim.backboneAtoms, n = bb.length; if (!ss || n < 6) return 0;
+  const ca: number[][] = []; for (let i = 0; i < n; i++) { const a = bb[i]?.CA; ca.push(a ? [a[0], a[1], a[2]] : [NaN, NaN, NaN]); }
+  const d = (i: number, j: number) => Math.hypot(ca[i][0] - ca[j][0], ca[i][1] - ca[j][1], ca[i][2] - ca[j][2]);
+  const s = (x: number) => (Number.isFinite(x) ? 1 / (1 + Math.exp((x - 5.5) / 0.4)) : 0);
+  const w = (i: number) => (ss[i] === 'E' ? 1 : 0.25);
+  let e = 0;
+  for (let i = 1; i < n - 1; i++) for (let j = i + 3; j < n - 1; j++) {
+    const sij = s(d(i, j)); if (sij < 0.05) continue;
+    const anti = s(d(i + 1, j - 1)) * s(d(i - 1, j + 1)), par = s(d(i + 1, j + 1)) * s(d(i - 1, j - 1));
+    const lad = Math.max(anti, par) * sij; if (lad < 0.05) continue;
+    e -= lad * w(i) * w(j);
+  }
+  return scale * e;
+}
 export function burialEnergy(sim: any, scale = 1.0): number {
   const bb = sim.backboneAtoms, ag = sim.agents, n = bb.length; let e = 0;
   for (let i = 0; i < n; i++) {
@@ -1356,8 +1378,8 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0;
-  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0); };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '';
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
   const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
   const n = sim.agents.length;
@@ -1450,15 +1472,15 @@ export function pickFragments(lib: FragmentLibrary, seq1: string, ss: string, k:
 }
 
 export interface HybridOptions { steps?: number; seed?: number; tStart?: number; tEnd?: number;
-  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; burialScale?: number; smallMoveFraction?: number; }
+  contacts?: { i: number; j: number; w?: number }[]; contactWeight?: number; burialScale?: number; betaScale?: number; betaSS?: string; smallMoveFraction?: number; }
 
 /** Monte Carlo z wstawianiem fragmentów: 1. połowa 9-mery, 2. połowa 3-mery + drobne ruchy. Energia = energia silnika (+ moduły F/H). */
 export function annealFragmentsMonteCarlo(sim: any, lib: FragmentLibrary, f9: FragmentSet, f3: FragmentSet, opts: HybridOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2, small = opts.smallMoveFraction ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, bs = opts.burialScale ?? 0;
-  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw) : 0) + (bs ? burialEnergy(sim, bs) : 0); };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '';
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0); };
   const ags = sim.agents, n = ags.length;
   sim.rebuildBackboneNeRF();
   let E = energy(), bestE = E, best = ags.map((g: any) => [g.phiDeg, g.psiDeg]), acc = 0;

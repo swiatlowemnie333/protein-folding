@@ -9,7 +9,7 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I' | 'P';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
@@ -17,6 +17,7 @@ const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'E', name: 'Monte Carlo', desc: 'Wyżarzanie Monte Carlo w przestrzeni kątów (φ, ψ)' },
   { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' },
   { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' },
+  { key: 'P', name: 'Parowanie nici β', desc: 'Nagroda za „drabinki” nici β: pary reszt (i, j) blisko siebie razem z sąsiednimi parami, równolegle lub antyrównolegle. Waga wyższa tam, gdzie GOR przewiduje nić. Na ślepo. Włącza też Monte Carlo.' },
   { key: 'I', name: 'Hybryda: fragmenty PDB', desc: 'Zamiast kręcić jednym kątem, wstawia kawałki 9 i 3 aminokwasów z 255 prawdziwych białek (jak Rosetta), dobrane po sekwencji + GOR. Na ślepo. Biblioteka pobierana z RCSB przy pierwszym użyciu (~20 s).' }
 ];
 
@@ -70,6 +71,8 @@ interface JournalEntry { date: string; text: string; }
 
 const JOURNAL_KEY = 'snaplock_dziennik_wnioskow_v1';
 const DEFAULT_JOURNAL: JournalEntry[] = [
+  { date: '2026-11-12', text: 'WYNIK modułu P (waga 3, 5 startów, MC 5000): HIPOTEZA NIEPOTWIERDZONA dla ubikwityny – E 11,37±1,01 vs P 11,80±0,87 Å, EC 11,36±1,62 vs PC 11,68±1,33 Å (szum, bez poprawy). Krambina: PC 7,37±0,57 vs EC 8,04±0,43 Å (ok. 0,7 Å lepiej, t≈2,1 – sugestia, nie dowód). Moduł P zostaje jako opcja, NIE domyślny. Następny krok: sprawdzić, czy człon β w ogóle obniża energię natywnej ubikwityny względem wabików (problem energii czy problem przeszukiwania?).' },
+  { date: '2026-11-12', text: 'HIPOTEZA (przed testem): ubikwityna ma fałszywe minimum, bo energia nie nagradza parowania nici β (38% β). Dodany moduł P – „drabinki” CA–CA < 5,5 Å z sąsiednią parą, waga wg GOR. Test A/B: E vs EP na ubikwitynie + kontrola na krambinie (α/β) i insulinie A (α), ≥ 5 startów. Wdrażamy jako domyślny tylko, jeśli poprawa > 2× szum i bez pogorszenia kontroli.' },
   { date: '2026-11-10', text: 'ESMFold (API ESM Atlas, darmowe, bez klucza) zmierzony na prawdziwych strukturach PDB: ubikwityna 0,83 Å (pLDDT 91), krambina 7,86 Å (pLDDT 50). Nasz najlepszy na krambinie: FRAG+K r1 7,53 ± 1,15 Å (12 startów) – na równi z ESMFold. Ubikwitynę ESMFold prawie na pewno widział w treningu, więc to nie jest uczciwe porównanie de novo.' },
   { date: '2026-11-10', text: 'Replikacja 12 startów: krambina MC 8,71 ± 0,51 → FRAG+K r1 7,53 ± 1,15 Å (p≈0,006), r2phys 7,85 ± 0,93 (p≈0,01). Ubikwityna bez poprawy (MC 11,31 → K 12,3): fałszywe minimum energii (natywna E −107,0 vs wabiki −110,9). Hipoteza: brakuje członu parowania nici β (ubikwityna 38% β).' },
   { date: '2026-11-10', text: 'Energia wyuczona r2phys z ograniczeniami znaków (VdW ≥ 0,3; mostki, wiązania H, pary PDB ≥ 0): natywna w top-3 w 42/45 białek CV, na 1. miejscu na obu białkach testowych. Runda 3 bez ograniczeń się wysypała (ujemna waga mostków) – odrzucona.' },
@@ -125,6 +128,9 @@ async function esmfoldPdb(seq1: string): Promise<string> {
   return r2.text();
 }
 interface EsmRow { key: string; n: number; esmRmsd: number; plddt: number; ours: number | null; oursCfg: string; }
+
+// Struktura drugorzędowa z GOR jako napis H/E/C (dla modułów I i P)
+const gorSS = (seq3: string[]): string => predictSecondaryStructureGOR(seq3).map((x: string) => x[0] === 'H' ? 'H' : x[0] === 'S' ? 'E' : 'C').join('');
 
 function allConfigs(selected: ModuleKey[]): string[] {
   const out: string[] = [];
@@ -219,7 +225,9 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H'))) ? mcSteps : 0,
+              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H') || cfg.includes('P'))) ? mcSteps : 0,
+              betaScale: cfg.includes('P') ? 3 : 0,
+              betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined,
               burialScale: cfg.includes('H') ? 20 : 0,
               contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined,
               contactWeight: 2.0
@@ -236,7 +244,7 @@ export default function AblationLabView() {
             }
             const sim: any = (run as any).simulation;
             annealFragmentsMonteCarlo(sim, fragLib, fragCache[key].f9, fragCache[key].f3, { steps: mcSteps, seed,
-              contacts: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined, burialScale: cfg.includes('H') ? 20 : 0 });
+              contacts: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined, burialScale: cfg.includes('H') ? 20 : 0, betaScale: cfg.includes('P') ? 3 : 0, betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined });
             g = sim.exportFinalAllAtomAndValidate().groundTruthValidation;
           }
           if (g && g.caRmsdAngstrom != null) { r.push(g.caRmsdAngstrom); t.push(g.tmScore ?? 0); }
