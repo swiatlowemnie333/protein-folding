@@ -363,6 +363,7 @@ export interface MultiAgentSimulationOptions {
   contactWeight?: number;
   burialScale?: number; // moduł H: zakopywanie (SASA × hydropatia)
   betaScale?: number; // moduł P: parowanie nici β (drabinki CA), 0 = wyłączony
+  zipperFraction?: number; // moduł Z: ruch składający spinkę β (odsetek kroków MC)
   betaSS?: string;    // przewidziana struktura drugorzędowa (H/E/C) – z GOR, na ślepo
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
@@ -1309,7 +1310,7 @@ export function runMultiAgentFoldingToConvergence(
   }
 
   if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
-    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale, betaScale: options.betaScale, betaSS: options.betaSS });
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale, betaScale: options.betaScale, betaSS: options.betaSS, zipperFraction: options.zipperFraction });
   }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
@@ -1335,7 +1336,9 @@ export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number;
   // Moduł H: zakopywanie wg SASA i hydropatii (efekt hydrofobowy). 0 = wyłączony.
   burialScale?: number;
   // Moduł P: parowanie nici β. 0 = wyłączony.
-  betaScale?: number; betaSS?: string; }
+  betaScale?: number; betaSS?: string;
+  // Moduł Z: ruch „zamek błyskawiczny nici” – odsetek kroków MC (0 = wyłączony).
+  zipperFraction?: number; }
 // Energia zakopania: reszty o dużej, hydrofobowej powierzchni (SASA × Kyte-Doolittle) wolą być w środku (dużo sąsiadów CA w 10 Å).
 // Moduł P: energia parowania nici β. Nagradza „drabinki”: para CA(i)–CA(j) bliżej niż ~5,5 Å
 // razem z sąsiednią parą (i±1, j∓1 antyrównolegle albo i±1, j±1 równolegle). Waga wyższa dla reszt,
@@ -1378,7 +1381,7 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '';
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '', zf = opts.zipperFraction ?? 0;
   const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
   const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
@@ -1389,6 +1392,31 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   let accepted = 0;
   for (let s = 0; s < steps; s++) {
     const T = t0 * Math.pow(t1 / t0, s / steps);
+    // --- Moduł Z: „zamek błyskawiczny nici” – dwa odcinki ustawione jako nici β + pętla dobrana tak, by je spiąć w spinkę ---
+    if (zf > 0 && n > 14 && rnd() < zf) {
+      const L = 4, loopLen = 2 + Math.floor(rnd() * 9); // pętla 2–10 reszt
+      const i0 = 1 + Math.floor(rnd() * Math.max(1, n - (2 * L + loopLen) - 2)); const j0 = i0 + L + loopLen;
+      if (j0 + L < n - 1) {
+        const idx: number[] = []; for (let k = i0; k < j0 + L; k++) idx.push(k);
+        const saved = idx.map(k => [sim.agents[k].phiDeg, sim.agents[k].psiDeg]);
+        const caD = (p: number, q: number) => { const a1 = sim.backboneAtoms[p]?.CA, b1 = sim.backboneAtoms[q]?.CA; return a1 && b1 ? Math.hypot(a1[0] - b1[0], a1[1] - b1[1], a1[2] - b1[2]) : 99; };
+        const turn: [number, number][] = [[-60, -30], [-90, 0], [60, 30], [-75, 145], [-120, 130]];
+        let bestScore = -1, bestT: number[][] | null = null;
+        for (let tr = 0; tr < 16; tr++) {
+          for (let k = 0; k < L; k++) { for (const r of [i0 + k, j0 + k]) { const g = sim.agents[r]; g.phiDeg = -120 + (rnd() - 0.5) * 20; g.psiDeg = 130 + (rnd() - 0.5) * 20; if (g.profile.code3 === 'PRO') g.phiDeg = -65; } }
+          for (let k = i0 + L; k < j0; k++) { const g = sim.agents[k]; const b = turn[Math.floor(rnd() * (g.profile.code3 === 'GLY' ? 5 : 4))]; g.phiDeg = b[0] + (rnd() - 0.5) * 30; g.psiDeg = b[1] + (rnd() - 0.5) * 30; if (g.profile.code3 === 'PRO') g.phiDeg = -65; }
+          sim.rebuildBackboneNeRF();
+          let sc = 0; for (let k = 0; k < L; k++) { const d = caD(i0 + k, j0 + L - 1 - k); sc += d < 6.0 ? 1 : d < 8 ? 0.3 : 0; }
+          if (sc > bestScore) { bestScore = sc; bestT = idx.map(k => [sim.agents[k].phiDeg, sim.agents[k].psiDeg]); }
+        }
+        idx.forEach((k, q) => { sim.agents[k].phiDeg = bestT![q][0]; sim.agents[k].psiDeg = bestT![q][1]; });
+        sim.rebuildBackboneNeRF();
+        const Ez = energy();
+        if (Ez <= E || rnd() < Math.exp(-(Ez - E) / T)) { E = Ez; accepted++; if (E < bestE) { bestE = E; best = sim.agents.map((g: any) => [g.phiDeg, g.psiDeg]); } }
+        else { idx.forEach((k, q) => { sim.agents[k].phiDeg = saved[q][0]; sim.agents[k].psiDeg = saved[q][1]; }); sim.rebuildBackboneNeRF(); }
+        continue;
+      }
+    }
     const i = 1 + Math.floor(rnd() * (n - 2));
     const ag = sim.agents[i];
     const old = [ag.phiDeg, ag.psiDeg];

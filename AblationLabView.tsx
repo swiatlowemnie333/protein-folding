@@ -9,7 +9,7 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I' | 'P';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I' | 'P' | 'Z';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
@@ -18,6 +18,7 @@ const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'F', name: 'Kontakty (test kontrolny)', desc: 'UWAGA: NIE na ślepo. Kontakty z prawdziwej struktury = górna granica tego, co da koewolucja/DCA. Włącza też Monte Carlo.' },
   { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' },
   { key: 'P', name: 'Parowanie nici β', desc: 'Nagroda za „drabinki” nici β: pary reszt (i, j) blisko siebie razem z sąsiednimi parami, równolegle lub antyrównolegle. Waga wyższa tam, gdzie GOR przewiduje nić. Na ślepo. Włącza też Monte Carlo.' },
+  { key: 'Z', name: 'Zamek błyskawiczny nici', desc: 'Nowy ruch Monte Carlo (z burzy mózgów rady): 5% kroków ustawia dwa odcinki jako nici β i dobiera pętlę między nimi (2–10 reszt) tak, żeby spiąć je w spinkę β. Akceptacja wg energii. Na ślepo. Włącza też Monte Carlo.' },
   { key: 'I', name: 'Hybryda: fragmenty PDB', desc: 'Zamiast kręcić jednym kątem, wstawia kawałki 9 i 3 aminokwasów z 255 prawdziwych białek (jak Rosetta), dobrane po sekwencji + GOR. Na ślepo. Biblioteka pobierana z RCSB przy pierwszym użyciu (~20 s).' }
 ];
 
@@ -71,6 +72,8 @@ interface JournalEntry { date: string; text: string; }
 
 const JOURNAL_KEY = 'snaplock_dziennik_wnioskow_v1';
 const DEFAULT_JOURNAL: JournalEntry[] = [
+  { date: '2026-11-12', text: 'WYNIK modułu Z (5 startów): ubikwityna bez poprawy – Z 12,21±1,02, CZ 12,30±0,61, PZ 11,21±1,27, CPZ 11,38±1,20 Å (porównanie: MC 11,37, fragmenty 10,44 – nadal najlepsze). Krambina: CZ 7,49±1,48 (najlepszy pojedynczy start 5,54 Å), CPZ 7,51±1,04 – w granicach szumu względem CP 7,37. WNIOSEK: spinki bliskie nie wystarczą. Ubikwitynę trzymają nici odległe w sekwencji (N-koniec z C-końcem, ok. 60 reszt) – tego ruch lokalny nie złoży. Następny krok: kontakty dalekiego zasięgu przewidywane z SAMEJ sekwencji (ESM-2 przez NVIDIA NIM) jako więzy w module F zamiast kontaktów z wyroczni.' },
+  { date: '2026-11-12', text: 'HIPOTEZA (przed testem, z burzy mózgów rady – propozycja nr 1): problemem jest przeszukiwanie, nie energia. Moduł Z „zamek błyskawiczny nici” – ruch MC składający spinkę β (2 odcinki po 4 reszty w konformacji β + pętla 2–10 reszt dobrana spośród 16 prób pod spięcie). Test: Z, CZ, PZ vs E/C/P na ubikwitynie i krambinie, 5 startów. Ograniczenie: ruch składa tylko bliskie spinki, nie pary nici odległe o 30+ reszt.' },
   { date: '2026-11-12', text: 'WYNIK modułu P (waga 3, 5 startów, MC 5000): HIPOTEZA NIEPOTWIERDZONA dla ubikwityny – E 11,37±1,01 vs P 11,80±0,87 Å, EC 11,36±1,62 vs PC 11,68±1,33 Å (szum, bez poprawy). Krambina: PC 7,37±0,57 vs EC 8,04±0,43 Å (ok. 0,7 Å lepiej, t≈2,1 – sugestia, nie dowód). Moduł P zostaje jako opcja, NIE domyślny. Następny krok: sprawdzić, czy człon β w ogóle obniża energię natywnej ubikwityny względem wabików (problem energii czy problem przeszukiwania?).' },
   { date: '2026-11-12', text: 'HIPOTEZA (przed testem): ubikwityna ma fałszywe minimum, bo energia nie nagradza parowania nici β (38% β). Dodany moduł P – „drabinki” CA–CA < 5,5 Å z sąsiednią parą, waga wg GOR. Test A/B: E vs EP na ubikwitynie + kontrola na krambinie (α/β) i insulinie A (α), ≥ 5 startów. Wdrażamy jako domyślny tylko, jeśli poprawa > 2× szum i bez pogorszenia kontroli.' },
   { date: '2026-11-10', text: 'ESMFold (API ESM Atlas, darmowe, bez klucza) zmierzony na prawdziwych strukturach PDB: ubikwityna 0,83 Å (pLDDT 91), krambina 7,86 Å (pLDDT 50). Nasz najlepszy na krambinie: FRAG+K r1 7,53 ± 1,15 Å (12 startów) – na równi z ESMFold. Ubikwitynę ESMFold prawie na pewno widział w treningu, więc to nie jest uczciwe porównanie de novo.' },
@@ -225,7 +228,8 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H') || cfg.includes('P'))) ? mcSteps : 0,
+              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H') || cfg.includes('P') || cfg.includes('Z'))) ? mcSteps : 0,
+              zipperFraction: cfg.includes('Z') ? 0.05 : 0,
               betaScale: cfg.includes('P') ? 3 : 0,
               betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined,
               burialScale: cfg.includes('H') ? 20 : 0,
