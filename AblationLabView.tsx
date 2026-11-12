@@ -9,7 +9,7 @@ import { GLOBAL_PROTEIN_TARGETS } from './src/snaplockGlobalTargets';
 // Wszystko na ślepo: silnik NIE widzi struktury docelowej (enableTargetGuidedRefinement: false).
 // =====================================================================================
 
-type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I' | 'P' | 'Z';
+type ModuleKey = 'B' | 'C' | 'D' | 'E' | 'F' | 'H' | 'I' | 'P' | 'Z' | 'S';
 const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'B', name: 'Kontakty MJ', desc: 'Energie kontaktu Miyazawa-Jernigan 1996 (210 par aminokwasów)' },
   { key: 'C', name: 'Wiązania H', desc: 'Wiązania wodorowe szkieletu O…N (2,9 Å)' },
@@ -19,6 +19,7 @@ const MODULES: { key: ModuleKey; name: string; desc: string }[] = [
   { key: 'H', name: 'Zakopywanie (SASA)', desc: 'Efekt hydrofobowy: reszty o dużej tłustej powierzchni (SASA × hydropatia Kyte) nagradzane za bycie w środku białka. Na ślepo. Włącza też Monte Carlo.' },
   { key: 'P', name: 'Parowanie nici β', desc: 'Nagroda za „drabinki” nici β: pary reszt (i, j) blisko siebie razem z sąsiednimi parami, równolegle lub antyrównolegle. Waga wyższa tam, gdzie GOR przewiduje nić. Na ślepo. Włącza też Monte Carlo.' },
   { key: 'Z', name: 'Zamek błyskawiczny nici', desc: 'Nowy ruch Monte Carlo (z burzy mózgów rady): 5% kroków ustawia dwa odcinki jako nici β i dobiera pętlę między nimi (2–10 reszt) tak, żeby spiąć je w spinkę β. Akceptacja wg energii. Na ślepo. Włącza też Monte Carlo.' },
+  { key: 'S', name: 'Kontakty z ESMFold (z sekwencji)', desc: 'Jak F, ale kontakty NIE z prawdziwej struktury, tylko przewidziane przez ESMFold z samej sekwencji (tylko pary, gdzie model jest pewny: pLDDT ≥ 70). Uwaga: ESMFold mógł widzieć znane białka w treningu – uczciwy test to krambina. Włącza też Monte Carlo.' },
   { key: 'I', name: 'Hybryda: fragmenty PDB', desc: 'Zamiast kręcić jednym kątem, wstawia kawałki 9 i 3 aminokwasów z 255 prawdziwych białek (jak Rosetta), dobrane po sekwencji + GOR. Na ślepo. Biblioteka pobierana z RCSB przy pierwszym użyciu (~20 s).' }
 ];
 
@@ -63,7 +64,9 @@ const PROTEINS: { key: string; label: string }[] = [
   { key: 'INSULIN_A_21', label: 'Insulina A (21)' },
   { key: 'CRAMBIN_46', label: 'Krambina (46)' },
   { key: 'UBIQUITIN_76', label: 'Ubikwityna (76)' },
-  { key: 'LYSOZYME_129', label: 'Lizozym (129)' }
+  { key: 'LYSOZYME_129', label: 'Lizozym (129)' },
+  { key: 'PROTEIN_G_56', label: 'Białko G B1 (56, β+α, 1PGA)' },
+  { key: 'ENGRAILED_54', label: 'Homeodomena engrailed (54, α, 1ENH)' }
 ];
 
 interface CellStats { rmsdMean: number; rmsdSd: number; tmMean: number; tmSd: number; best: number; n: number; }
@@ -72,6 +75,8 @@ interface JournalEntry { date: string; text: string; }
 
 const JOURNAL_KEY = 'snaplock_dziennik_wnioskow_v1';
 const DEFAULT_JOURNAL: JournalEntry[] = [
+  { date: '2026-11-12', text: 'WYNIK modułu S (5 startów, RMSD Å): Ubikwityna S 9,20±1,49 (najlepszy w historii aplikacji; A 13,38, fragmenty 10,44). Białko G: S 7,43±1,02, S+fragmenty 7,37±1,99 (A 11,86). Engrailed: S+fragmenty 6,19±2,34 (A 10,48). Krambina: S = bez zmian (8,06 = jak samo MC) – ESMFold nie dał tu ŻADNEGO kontaktu z pLDDT ≥ 70, więc moduł nic nie wniósł. UCZCIWIE: poprawa dotyczy białek, które ESMFold najpewniej zna z treningu – to hybryda, nie czyste de novo. WAŻNE: nawet z dobrymi kontaktami silnik dochodzi do ~9 Å, a ESMFold ma 0,83 Å na ubikwitynie – wąskim gardłem jest spełnianie więzów przez przeszukiwanie (zgodne z testem F z wyrocznią: tylko 1–1,5 Å zysku).' },
+  { date: '2026-11-12', text: 'HIPOTEZA (przed testem): ubikwitynie i białku G brakuje informacji, KTÓRE odległe odcinki mają się spotkać. Moduł S: kontakty przewidziane przez ESMFold z samej sekwencji (pLDDT ≥ 70) jako więzy (jak F, bez wyroczni). Nowe białka testowe: białko G B1 (1PGA, 56 aa, nici z N- i C-końca parują się) i homeodomena engrailed (1ENH, 54 aa, same helisy – kontrola). Uczciwość: ESMFold zna wiele białek z PDB, więc miarodajna jest krambina (ESMFold pLDDT 50).' },
   { date: '2026-11-12', text: 'WYNIK modułu Z (5 startów): ubikwityna bez poprawy – Z 12,21±1,02, CZ 12,30±0,61, PZ 11,21±1,27, CPZ 11,38±1,20 Å (porównanie: MC 11,37, fragmenty 10,44 – nadal najlepsze). Krambina: CZ 7,49±1,48 (najlepszy pojedynczy start 5,54 Å), CPZ 7,51±1,04 – w granicach szumu względem CP 7,37. WNIOSEK: spinki bliskie nie wystarczą. Ubikwitynę trzymają nici odległe w sekwencji (N-koniec z C-końcem, ok. 60 reszt) – tego ruch lokalny nie złoży. Następny krok: kontakty dalekiego zasięgu przewidywane z SAMEJ sekwencji (ESM-2 przez NVIDIA NIM) jako więzy w module F zamiast kontaktów z wyroczni.' },
   { date: '2026-11-12', text: 'HIPOTEZA (przed testem, z burzy mózgów rady – propozycja nr 1): problemem jest przeszukiwanie, nie energia. Moduł Z „zamek błyskawiczny nici” – ruch MC składający spinkę β (2 odcinki po 4 reszty w konformacji β + pętla 2–10 reszt dobrana spośród 16 prób pod spięcie). Test: Z, CZ, PZ vs E/C/P na ubikwitynie i krambinie, 5 startów. Ograniczenie: ruch składa tylko bliskie spinki, nie pary nici odległe o 30+ reszt.' },
   { date: '2026-11-12', text: 'WYNIK modułu P (waga 3, 5 startów, MC 5000): HIPOTEZA NIEPOTWIERDZONA dla ubikwityny – E 11,37±1,01 vs P 11,80±0,87 Å, EC 11,36±1,62 vs PC 11,68±1,33 Å (szum, bez poprawy). Krambina: PC 7,37±0,57 vs EC 8,04±0,43 Å (ok. 0,7 Å lepiej, t≈2,1 – sugestia, nie dowód). Moduł P zostaje jako opcja, NIE domyślny. Następny krok: sprawdzić, czy człon β w ogóle obniża energię natywnej ubikwityny względem wabików (problem energii czy problem przeszukiwania?).' },
@@ -135,6 +140,42 @@ interface EsmRow { key: string; n: number; esmRmsd: number; plddt: number; ours:
 // Struktura drugorzędowa z GOR jako napis H/E/C (dla modułów I i P)
 const gorSS = (seq3: string[]): string => predictSecondaryStructureGOR(seq3).map((x: string) => x[0] === 'H' ? 'H' : x[0] === 'S' ? 'E' : 'C').join('');
 
+// ---- Dodatkowe białka testowe (pobierane z RCSB przy pierwszym użyciu) ----
+const EXTRA_TARGETS: Record<string, { pdb: string; chain: string }> = { PROTEIN_G_56: { pdb: '1PGA', chain: 'A' }, ENGRAILED_54: { pdb: '1ENH', chain: 'A' } };
+const specCache: Record<string, any> = {};
+const THREE: Record<string, string> = Object.fromEntries(Object.entries(ONE1).map(([k, v]) => [v, k]));
+async function getSpec(key: string): Promise<any> {
+  const g = (GLOBAL_PROTEIN_TARGETS as any)[key]; if (g) return g;
+  if (specCache[key]) return specCache[key];
+  const x = EXTRA_TARGETS[key]; if (!x) return null;
+  const txt = await (await fetch('https://files.rcsb.org/download/' + x.pdb + '.pdb')).text();
+  const lines: string[] = []; const seq3: string[] = []; const seen = new Set<string>();
+  for (const l of txt.split('\n')) {
+    if (l.startsWith('ENDMDL')) break;
+    if (!l.startsWith('ATOM') || l[21] !== x.chain || !(l[16] === ' ' || l[16] === 'A')) continue;
+    const rn = l.slice(17, 20), id = l.slice(22, 27);
+    if (!ONE1[rn]) continue;
+    lines.push(l);
+    if (l.slice(12, 16).trim() === 'CA' && !seen.has(id)) { seen.add(id); seq3.push(rn); }
+  }
+  // cdAlpha/Beta = 0: nie podajemy silnikowi nic wyliczonego ze struktury docelowej
+  const spec = { sequence3Letter: seq3, cdAlphaTargetPct: 0, cdBetaTargetPct: 0, explicitDisulfidePairs0Based: [], referencePdbText: lines.join('\n') + '\nEND' };
+  specCache[key] = spec; return spec;
+}
+// ---- Moduł S: kontakty przewidziane przez ESMFold z samej sekwencji (pLDDT >= 70 po obu stronach) ----
+const esmContactCache: Record<string, { i: number; j: number }[]> = {};
+async function esmContacts(key: string, spec: any): Promise<{ i: number; j: number }[]> {
+  if (esmContactCache[key]) return esmContactCache[key];
+  const seq1 = spec.sequence3Letter.map((c: string) => ONE1[c] ?? 'X').join('');
+  const P = caCoords(await esmfoldPdb(seq1)); const n = Math.min(P.xyz.length, spec.sequence3Letter.length);
+  const pl = P.b.map((b: number) => (b <= 1 ? b * 100 : b)); const out: { i: number; j: number }[] = [];
+  for (let i = 0; i < n; i++) for (let j = i + 6; j < n; j++) {
+    if (pl[i] < 70 || pl[j] < 70) continue;
+    const a = P.xyz[i], b = P.xyz[j]; if (Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 8) out.push({ i, j });
+  }
+  esmContactCache[key] = out; return out;
+}
+
 function allConfigs(selected: ModuleKey[]): string[] {
   const out: string[] = [];
   const n = selected.length;
@@ -163,7 +204,7 @@ export default function AblationLabView() {
     setEsmBusy(true); setEsmRows([]);
     const out: EsmRow[] = [];
     for (const key of selectedProteins) {
-      const spec: any = (GLOBAL_PROTEIN_TARGETS as any)[key]; if (!spec) continue;
+      const spec: any = await getSpec(key); if (!spec) continue;
       const seq1 = spec.sequence3Letter.map((c: string) => ONE1[c] ?? 'X').join('');
       setProgress('ESMFold · ' + key);
       try {
@@ -207,7 +248,7 @@ export default function AblationLabView() {
     for (const cfg of configs) {
       const row: GridRow = { cfg, cells: {} };
       for (const key of selectedProteins) {
-        const spec: any = (GLOBAL_PROTEIN_TARGETS as any)[key];
+        const spec: any = await getSpec(key);
         if (!spec) continue;
         const r: number[] = [], t: number[] = [];
         for (let seed = 1; seed <= seeds; seed++) {
@@ -228,12 +269,12 @@ export default function AblationLabView() {
               mjContactScale: cfg.includes('B') ? 1.0 : 0,
               hBondScale: cfg.includes('C') ? 1.5 : 0,
               secondaryStructurePredictor: cfg.includes('D') ? 'GOR' : 'LEGACY',
-              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H') || cfg.includes('P') || cfg.includes('Z'))) ? mcSteps : 0,
+              monteCarloSteps: (!cfg.includes('I') && (cfg.includes('E') || cfg.includes('F') || cfg.includes('H') || cfg.includes('P') || cfg.includes('Z') || cfg.includes('S'))) ? mcSteps : 0,
               zipperFraction: cfg.includes('Z') ? 0.05 : 0,
               betaScale: cfg.includes('P') ? 3 : 0,
               betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined,
               burialScale: cfg.includes('H') ? 20 : 0,
-              contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined,
+              contactRestraints: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : cfg.includes('S') ? await esmContacts(key, spec) : undefined,
               contactWeight: 2.0
             },
             frames,
@@ -248,7 +289,7 @@ export default function AblationLabView() {
             }
             const sim: any = (run as any).simulation;
             annealFragmentsMonteCarlo(sim, fragLib, fragCache[key].f9, fragCache[key].f3, { steps: mcSteps, seed,
-              contacts: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : undefined, burialScale: cfg.includes('H') ? 20 : 0, betaScale: cfg.includes('P') ? 3 : 0, betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined });
+              contacts: cfg.includes('F') ? nativeContacts(spec.referencePdbText, spec.sequence3Letter.length) : cfg.includes('S') ? await esmContacts(key, spec) : undefined, burialScale: cfg.includes('H') ? 20 : 0, betaScale: cfg.includes('P') ? 3 : 0, betaSS: cfg.includes('P') ? gorSS(spec.sequence3Letter) : undefined });
             g = sim.exportFinalAllAtomAndValidate().groundTruthValidation;
           }
           if (g && g.caRmsdAngstrom != null) { r.push(g.caRmsdAngstrom); t.push(g.tmScore ?? 0); }
