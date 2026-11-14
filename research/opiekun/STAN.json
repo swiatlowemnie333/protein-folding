@@ -1,6 +1,6 @@
 {
   "opiekun_regul": "dziennik stanu - czytaj PRZED pracą nad tabelami, aktualizuj PO pracy",
-  "ostatnia_aktualizacja": "2026-11-14 19:15",
+  "ostatnia_aktualizacja": "2026-11-14 19:55",
   "gdzie_stanelismy": "Magazyn danych: audyt tabeli 22 aa + geometrii szkieletu + bazenów kątów zrobiony prawdziwymi pomiarami (rules_keeper.py, rules_keeper_geom.py). Wbudowany audyt aplikacji NIE jest pomiarem (liczby wpisane na sztywno). Dodany moduł K (kalibracja kątów z danych), wyłączony domyślnie.",
   "bialka_ostatnio": {
     "zbior_danych": "1433 białka RCSB (backbone), ~206 tys. reszt, /tmp/big/rows.pkl (na Twoim PC: bialka_backbone.zip)",
@@ -75,7 +75,7 @@
     "stałe MJ (macierz 20x20)",
     "wagi energii (hBond 1.5, burial, itp.)"
   ],
-  "nastepny_krok_1": "Komparator na 1433 białkach z modułem K vs bez K (nie tylko 1PGA/1ENH) - automatycznie raportuje miejsca niedociągnięć",
+  "nastepny_krok_1": "Zweryfikować poprawki Badań (próbna runda P1), potem Start pętli; czytać GET /api/research/report?format=md",
   "wizja_UI": "Interaktywna wróżka-przewodniczka latająca po ekranie (oryginalna postać), która zna STAN.json i oprowadza po zakładkach",
   "naprawione": [
     "SEC ładunek pH7.4: -0.7 -> -0.99",
@@ -96,5 +96,14 @@
     "SEC/PYL pI bez źródła",
     "wlasciwa 'podejrzana' w silniku: Gly tau 111.2 w silniku vs 113.2 w danych (Gly), pre-Pro CNCA 121.7 vs 120.4 w danych"
   ],
-  "nastepny_krok_2": "Poprawić Gly tau (113.2) i pre-Pro CNCA (120.4) jako kolejny wariant; potem MJ i vdW atomowe"
+  "nastepny_krok_2": "Poprawić Gly tau (113.2) i pre-Pro CNCA (120.4) jako kolejny wariant; potem MJ i vdW atomowe",
+  "tablica_badan_OmniStar": {
+    "aplikacja": "AI Studio 'OmniStar 3D' id 9c763638-c80b-4d12-a4e1-4c2f48ed0f21; serwer dev: https://ais-dev-7gznffhwzkds6rfypkw5ax-645902833227.europe-west2.run.app (wymaga zalogowanej przeglądarki Michała)",
+    "repo_kodu": "swiatlowemnie333/Omnistar (prywatne) - uwaga: nowe pliki Badań są tylko w AI Studio, repo ma stan z 12.11",
+    "znalezisko": "Stara 'Pełna Rada (9)' to JEDNO wywołanie Gemini udające 9 głosów, i działa tylko na kluczach serwera (oba martwe: Gemini 'konto nieaktywne', OpenRouter 'User not found'). Nie jest niezależną recenzją.",
+    "zrobione": "Zakładka 'Badania' (researchEngine.ts, ResearchBoardPanel.tsx): prawdziwi eksperci z różnych dostawców, recenzenci, ambasador zasad, moderator, pętla z bezpiecznikami, 6 problemów P1-P6 wczytanych, API /api/research/{board,problem,directive,report,control}",
+    "test_runda_1_P1": "odpowiedział tylko Groq; Mercury 404 (mercury-2 vs mercury-3), NVIDIA NIM 404, Gemini klucz nieważny; aplikacja uczciwie oznaczyła błędy. Zlecone poprawki: test zdrowia dostawców, auto-dobór modelu, dodanie Gonki (4 modele), bezpiecznik niezależności (>=3 ekspertów od >=2 dostawców, >=2 recenzentów), pauza przy nieważnej rundzie.",
+    "do_wymiany_przez_Michała": "klucz Gemini (nieważny); LLM_API_KEY w ustawieniach AI Studio prosi o wartość (nie wpisywałem)",
+    "pętla": "w stanie PAUZA do czasu poprawek"
+  }
 }
