@@ -1,0 +1,31 @@
+import { readFileSync } from 'fs';
+import { runMultiAgentFoldingToConvergence, predictSecondaryStructureGOR } from './src/snaplockMultiAgentEngine';
+const ONE1:Record<string,string>={ALA:'A',ARG:'R',ASN:'N',ASP:'D',CYS:'C',GLN:'Q',GLU:'E',GLY:'G',HIS:'H',ILE:'I',LEU:'L',LYS:'K',MET:'M',PHE:'F',PRO:'P',SER:'S',THR:'T',TRP:'W',TYR:'Y',VAL:'V'};
+function getSpecLocal(p:string,ch:string){const txt=readFileSync(p,'utf8');const lines:string[]=[];const seq3:string[]=[];const seen=new Set<string>();
+  for(const l of txt.split('\n')){if(l.startsWith('ENDMDL'))break;if(!l.startsWith('ATOM')||l[21]!==ch||!(l[16]===' '||l[16]==='A'))continue;const rn=l.slice(17,20),id=l.slice(22,27);if(!ONE1[rn])continue;lines.push(l);if(l.slice(12,16).trim()==='CA'&&!seen.has(id)){seen.add(id);seq3.push(rn);}}
+  return{sequence3Letter:seq3,referencePdbText:lines.join('\n')+'\nEND'};}
+function caCoords(pdb:string){const xyz:number[][]=[];const seen=new Set<string>();let chain='';
+  for(const l of(pdb||'').split('\n')){if(!l.startsWith('ATOM')||l.slice(12,16).trim()!=='CA'||!(l[16]===' '||l[16]==='A'))continue;if(!chain)chain=l[21];if(l[21]!==chain)continue;const id=l.slice(22,27);if(seen.has(id))continue;seen.add(id);xyz.push([+l.slice(30,38),+l.slice(38,46),+l.slice(46,54)]);}return xyz;}
+function optimalRmsd(P:number[][],Q:number[][]):number{const n=Math.min(P.length,Q.length);if(n<3)return NaN;const c=(A:number[][])=>[0,1,2].map(k=>A.slice(0,n).reduce((s,p)=>s+p[k],0)/n);const cp=c(P),cq=c(Q);const X=P.slice(0,n).map(p=>p.map((x,k)=>x-cp[k])),Y=Q.slice(0,n).map(p=>p.map((x,k)=>x-cq[k]));const S=[[0,0,0],[0,0,0],[0,0,0]];for(let i=0;i<n;i++)for(let a=0;a<3;a++)for(let b=0;b<3;b++)S[a][b]+=X[i][a]*Y[i][b];const[[xx,xy,xz],[yx,yy,yz],[zx,zy,zz]]=S;const N=[[xx+yy+zz,yz-zy,zx-xz,xy-yx],[yz-zy,xx-yy-zz,xy+yx,zx+xz],[zx-xz,xy+yx,-xx+yy-zz,yz+zy],[xy-yx,zx+xz,yz+zy,-xx-yy+zz]];const e0=X.reduce((s,p)=>s+p[0]**2+p[1]**2+p[2]**2,0)+Y.reduce((s,p)=>s+p[0]**2+p[1]**2+p[2]**2,0);let q=[0.5,0.5,0.5,0.5];for(let it=0;it<20000;it++){const w=N.map((r,i)=>r.reduce((s,x,j)=>s+x*q[j],0)+e0*q[i]);const no=Math.hypot(...w);q=w.map(x=>x/no);}const lam=N.map(r=>r.reduce((s,x,j)=>s+x*q[j],0)).reduce((s,x,j)=>s+x*q[j],0);return Math.sqrt(Math.max(0,(e0-2*lam)/n));}
+// niezalezny TM: Kabsch nakladka + standardowe d0 na dlugosci referencji
+function kabschAlign(P:number[][],Q:number[][]):number[][]{const n=Math.min(P.length,Q.length);const c=(A:number[][])=>[0,1,2].map(k=>A.slice(0,n).reduce((s,p)=>s+p[k],0)/n);const cp=c(P),cq=c(Q);const X=P.slice(0,n).map(p=>p.map((x,k)=>x-cp[k])),Y=Q.slice(0,n).map(p=>p.map((x,k)=>x-cq[k]));const S=[[0,0,0],[0,0,0],[0,0,0]];for(let i=0;i<n;i++)for(let a=0;a<3;a++)for(let b=0;b<3;b++)S[a][b]+=X[i][a]*Y[i][b];const[[xx,xy,xz],[yx,yy,yz],[zx,zy,zz]]=S;const N=[[xx+yy+zz,yz-zy,zx-xz,xy-yx],[yz-zy,xx-yy-zz,xy+yx,zx+xz],[zx-xz,xy+yx,-xx+yy-zz,yz+zy],[xy-yx,zx+xz,yz+zy,-xx-yy+zz]];let q=[1,0,0,0];for(let it=0;it<30000;it++){const w=N.map((r,i)=>r.reduce((s,x,j)=>s+x*q[j],0)+100*q[i]);const no=Math.hypot(...w);q=w.map(x=>x/no);}
+  const[w0,x,y,z]=q;const R=[[1-2*(y*y+z*z),2*(x*y-w0*z),2*(x*z+w0*y)],[2*(x*y+w0*z),1-2*(x*x+z*z),2*(y*z-w0*x)],[2*(x*z-w0*y),2*(y*z+w0*x),1-2*(x*x+y*y)]];
+  return X.map(p=>[R[0][0]*p[0]+R[0][1]*p[1]+R[0][2]*p[2],R[1][0]*p[0]+R[1][1]*p[1]+R[1][2]*p[2],R[2][0]*p[0]+R[2][1]*p[1]+R[2][2]*p[2]]).map((p,i)=>[p[0]+cq[0],p[1]+cq[1],p[2]+cq[2]]);}
+function tmIndep(model:number[][],native:number[][]):number{const n=Math.min(model.length,native.length);const Yc=native.slice(0,n).map(p=>[...p]);const A=kabschAlign(model,native);const L=native.length;const d0=Math.max(0.5,1.24*Math.cbrt(L-15)-1.8);let s=0;for(let i=0;i<n;i++){const d=Math.hypot(A[i][0]-Yc[i][0],A[i][1]-Yc[i][1],A[i][2]-Yc[i][2]);s+=1/(1+(d/d0)**2);}return s/n;}
+function lrRecovery(model:number[][],native:number[][],minSep:number){const n=Math.min(model.length,native.length);let tot=0,hit=0;for(let i=0;i<n;i++)for(let j=i+minSep;j<n;j++){const dn=Math.hypot(native[i][0]-native[j][0],native[i][1]-native[j][1],native[i][2]-native[j][2]);if(dn>=8)continue;tot++;const dm=Math.hypot(model[i][0]-model[j][0],model[i][1]-model[j][1],model[i][2]-model[j][2]);if(dm<8)hit++;}return{tot,rec:tot?hit/tot:0};}
+const gorSS=(s:string[])=>predictSecondaryStructureGOR(s).map((x:string)=>x[0]==='H'?'H':x[0]==='S'?'E':'C').join('');
+function runOne(spec:any,cfg:string,seed:number){const run=runMultiAgentFoldingToConvergence({sequenceCodes:spec.sequence3Letter,cdAlphaTargetPct:0,cdBetaTargetPct:0,explicitDisulfidePairs:[],referencePdbText:spec.referencePdbText,referenceId:'X',enableTargetGuidedRefinement:false,randomSeed:seed,initialNoiseDeg:15,mjContactScale:0,hBondScale:cfg.includes('C')?1.5:0,secondaryStructurePredictor:cfg.includes('D')?'GOR':'LEGACY',monteCarloSteps:(cfg.includes('P')||cfg.includes('Z'))?5000:0,zipperFraction:cfg.includes('Z')?0.05:0,betaScale:cfg.includes('P')?3:0,betaSS:cfg.includes('P')?gorSS(spec.sequence3Letter):undefined,burialScale:0,contactWeight:2.0}as any,150,3);
+  const g:any=run.groundTruthValidation;const model=(run.caPositions as any[]).map((v:any)=>[v[0],v[1],v[2]]);return{g,model};}
+
+const spec=getSpecLocal('tests/fixtures/1PGA.pdb','A');const nat=caCoords(spec.referencePdbText);
+console.log('n native CA:',nat.length,' n seq:',spec.sequence3Letter.length);
+for(const[cfg,seed]of[['ACPZ',4],['A',1]] as [string,number][]){
+  const{g,model}=runOne(spec,cfg,seed);
+  const myRmsd=optimalRmsd(model,nat);const myTm=tmIndep(model,nat);
+  const lr20=lrRecovery(model,nat,20),lr12=lrRecovery(model,nat,12),all=lrRecovery(model,nat,6);
+  console.log(`\n[${cfg} seed${seed}]`);
+  console.log(`  silnik:  RMSD=${g.caRmsdAngstrom?.toFixed(3)}  TM=${g.tmScore?.toFixed(3)}  sparowane=${g.pairedResidueCount}/${g.referenceResidueCount}`);
+  console.log(`  moje:    RMSD=${myRmsd.toFixed(3)}  TM=${myTm.toFixed(3)}  (niezalezny Kabsch+TM)`);
+  console.log(`  model CA: ${model.length}, pierwszy=[${model[0].map(x=>x.toFixed(1))}]  czy NaN? ${model.some(p=>p.some(Number.isNaN))}`);
+  console.log(`  odzysk kontaktow natywnych: |i-j|>=6 ${(all.rec*100).toFixed(0)}% (${all.tot})  |i-j|>=12 ${(lr12.rec*100).toFixed(0)}% (${lr12.tot})  |i-j|>=20 ${(lr20.rec*100).toFixed(0)}% (${lr20.tot})`);
+}

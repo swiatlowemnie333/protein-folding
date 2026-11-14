@@ -1,0 +1,35 @@
+== Gly by (prev SS, next SS) ==
+Gly prevSS=H nextSS=H                        n= 267 phi>0 0.45 | d2 5.75±0.50 | angle 99±14 | vtors -9±80
+Gly prevSS=H nextSS=E                        n= 104 phi>0 0.93 | d2 5.92±0.60 | angle 104±16 | vtors -108±70
+Gly prevSS=H nextSS=C                        n=  24 phi>0 0.92 | d2 5.72±0.37 | angle 99±11 | vtors -77±67
+Gly prevSS=E nextSS=H                        n=  28 phi>0 0.61 | d2 6.77±0.55 | angle 130±17 | vtors +30±96
+Gly prevSS=E nextSS=E                        n= 103 phi>0 0.57 | d2 6.30±0.70 | angle 115±20 | vtors -18±102
+Gly prevSS=E nextSS=C                        n=  72 phi>0 0.68 | d2 6.44±0.54 | angle 118±16 | vtors -12±78
+Gly prevSS=C nextSS=H                        n=  17 phi>0 0.41 | d2 6.25±0.73 | angle 114±21 | vtors +5±116
+Gly prevSS=C nextSS=E                        n= 122 phi>0 0.72 | d2 6.08±0.63 | angle 108±18 | vtors -44±82
+Gly prevSS=C nextSS=C                        n=  73 phi>0 0.73 | d2 6.00±0.59 | angle 106±17 | vtors -38±84
+
+== same for ALL non-Gly (reference) ==
+nonGly prevSS=H nextSS=C                     n= 273 phi>0 0.01 | d2 6.07±0.54 | angle 107±15 | vtors +31±92
+nonGly prevSS=E nextSS=E                     n=1602 phi>0 0.01 | d2 6.48±0.50 | angle 119±14 | vtors -89±112
+nonGly prevSS=C nextSS=C                     n= 573 phi>0 0.03 | d2 6.16±0.64 | angle 110±17 | vtors +41±95
+nonGly prevSS=E nextSS=C                     n= 762 phi>0 0.03 | d2 6.23±0.58 | angle 112±16 | vtors -79±102
+nonGly prevSS=C nextSS=E                     n= 706 phi>0 0.05 | d2 6.37±0.60 | angle 116±17 | vtors +45±110
+
+== motifs ==
+Gly after N/D (turn motif N-G, D-G)          n=  92 phi>0 0.77 | d2 5.87±0.54 | angle 102±16 | vtors -39±75
+Gly after N                                  n=  54 phi>0 0.78 | d2 5.86±0.52 | angle 102±15 | vtors -36±74
+Gly after D                                  n=  38 phi>0 0.76 | d2 5.89±0.57 | angle 103±17 | vtors -43±77
+Gly NOT after N/D                            n= 718 phi>0 0.61 | d2 6.04±0.65 | angle 107±18 | vtors -31±92
+Gly = C-cap of helix (prev H, next not H)    n= 128 phi>0 0.93 | d2 5.88±0.57 | angle 103±15 | vtors -102±71
+Gly between two strand residues              n= 103 phi>0 0.57 | d2 6.30±0.70 | angle 115±20 | vtors -18±102
+Gly = N-cap of helix                         n=  45 phi>0 0.53 | d2 6.57±0.67 | angle 124±20 | vtors +20±105
+Gly next to Gly                              n=  74 phi>0 0.49 | d2 6.23±0.68 | angle 113±20 | vtors -7±108
+Gly next to Pro                              n=  53 phi>0 0.51 | d2 6.27±0.70 | angle 114±20 | vtors +5±91
+neighbours of Gly with phi>0                 neighbours: d2 6.18±0.58 n=988
+neighbours of Gly with phi<0                 neighbours: d2 5.87±0.63 n=556
+
+== how much of phi>0 is explained ==
+phi>0 overall 0.068 ; among Gly 0.632 ; among non-Gly 0.022
+share of all phi>0 residues that are Gly: 69.7% (Gly is 7.5% of residues)
+non-Gly phi>0 rate by aa: N0.13 H0.05 K0.04 Q0.03 Y0.03 S0.02 R0.02

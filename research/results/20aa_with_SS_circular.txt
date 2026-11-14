@@ -1,0 +1,111 @@
+residues 20635 proteins 142
+
+=== 1. Ramachandran-region mix per amino acid (A=alpha B=beta L=left(phi>0) O=other) ===
+aa    n   A    B    L    O   | mean d(i-1,i+1)  sd
+A  1532 0.65 0.31 0.02 0.02 | 5.86  0.62
+C   352 0.43 0.53 0.01 0.03 | 6.17  0.65
+D  1231 0.57 0.33 0.05 0.05 | 5.88  0.55
+E  1351 0.66 0.31 0.02 0.02 | 5.85  0.58
+F   826 0.49 0.46 0.02 0.03 | 6.11  0.65
+G  1475 0.22 0.17 0.59 0.02 | 6.11  0.67
+H   419 0.46 0.40 0.09 0.05 | 6.08  0.62
+I  1135 0.50 0.48 0.01 0.01 | 6.04  0.59
+K  1483 0.60 0.35 0.03 0.02 | 5.92  0.60
+L  1850 0.61 0.37 0.01 0.01 | 5.91  0.57
+M   411 0.57 0.40 0.01 0.01 | 6.00  0.65
+N   985 0.48 0.32 0.14 0.06 | 5.90  0.57
+P   812 0.43 0.54 0.00 0.02 | 5.97  0.58
+Q   758 0.60 0.34 0.04 0.01 | 5.93  0.60
+R   919 0.61 0.34 0.03 0.02 | 5.90  0.62
+S  1303 0.47 0.48 0.03 0.02 | 6.12  0.67
+T  1227 0.45 0.53 0.01 0.01 | 6.19  0.63
+V  1420 0.44 0.55 0.00 0.01 | 6.15  0.62
+W   353 0.54 0.42 0.02 0.02 | 6.09  0.65
+Y   793 0.42 0.52 0.04 0.02 | 6.19  0.65
+
+=== 2. predictability of Ramachandran region (leave-protein-out, random forest) ===
+aa  majority | context-acc | gain   | top variable
+A   0.651  |  0.861      | +0.210 | prevSS(0.35) nextSS(0.34)
+C   0.531  |  0.804      | +0.273 | prevSS(0.33) nextSS(0.25)
+D   0.567  |  0.741      | +0.174 | prevSS(0.26) nextSS(0.11)
+E   0.656  |  0.859      | +0.203 | prevSS(0.37) nextSS(0.28)
+F   0.493  |  0.835      | +0.343 | prevSS(0.35) nextSS(0.30)
+G   0.587  |  0.692      | +0.105 | burial(0.17) nextSS(0.13)
+H   0.458  |  0.673      | +0.215 | prevSS(0.24) nextSS(0.16)
+I   0.500  |  0.880      | +0.380 | nextSS(0.40) prevSS(0.29)
+K   0.601  |  0.817      | +0.216 | prevSS(0.30) nextSS(0.24)
+L   0.606  |  0.870      | +0.264 | nextSS(0.34) prevSS(0.33)
+M   0.572  |  0.852      | +0.280 | prevSS(0.35) nextSS(0.34)
+N   0.484  |  0.649      | +0.164 | prevSS(0.21) nextSS(0.11)
+P   0.543  |  0.809      | +0.266 | prevSS(0.22) nextSS(0.18)
+Q   0.602  |  0.834      | +0.232 | nextSS(0.31) prevSS(0.29)
+R   0.608  |  0.822      | +0.213 | nextSS(0.33) prevSS(0.28)
+S   0.476  |  0.776      | +0.300 | prevSS(0.27) nextSS(0.12)
+T   0.535  |  0.829      | +0.294 | prevSS(0.31) nextSS(0.22)
+V   0.547  |  0.893      | +0.346 | nextSS(0.38) prevSS(0.36)
+W   0.535  |  0.816      | +0.280 | nextSS(0.27) prevSS(0.27)
+Y   0.522  |  0.847      | +0.325 | prevSS(0.35) nextSS(0.26)
+
+=== 3. strongest single conditions per amino acid (|z|>=4, n>=40) ===
+A  region B | SS=E                   n= 409 rate 0.98 vs baseline 0.31 (z=29.0)
+A  region A | SS=E                   n= 409 rate 0.00 vs baseline 0.65 (z=27.5)
+A  region B | prevSS=E               n= 396 rate 0.81 vs baseline 0.31 (z=21.3)
+C  region B | SS=E                   n= 156 rate 0.99 vs baseline 0.53 (z=11.4)
+C  region A | SS=E                   n= 156 rate 0.01 vs baseline 0.43 (z=10.5)
+C  region A | prevSS=H               n= 134 rate 0.86 vs baseline 0.43 (z=10.0)
+D  region B | SS=E                   n= 241 rate 0.95 vs baseline 0.33 (z=20.4)
+D  region A | SS=E                   n= 241 rate 0.02 vs baseline 0.57 (z=17.0)
+D  region A | prevSS=H               n= 553 rate 0.84 vs baseline 0.57 (z=13.0)
+E  region B | SS=E                   n= 344 rate 0.98 vs baseline 0.31 (z=26.8)
+E  region A | SS=E                   n= 344 rate 0.01 vs baseline 0.66 (z=25.1)
+E  region A | prevSS=E               n= 330 rate 0.15 vs baseline 0.66 (z=19.4)
+F  region B | SS=E                   n= 329 rate 0.97 vs baseline 0.46 (z=18.8)
+F  region A | SS=E                   n= 329 rate 0.01 vs baseline 0.49 (z=17.7)
+F  region A | SS=H                   n= 387 rate 0.87 vs baseline 0.49 (z=15.0)
+G  region B | SS=E                   n= 471 rate 0.47 vs baseline 0.17 (z=17.3)
+G  region A | nextSS=H               n= 568 rate 0.43 vs baseline 0.22 (z=12.1)
+G  region A | SS=E                   n= 471 rate 0.01 vs baseline 0.22 (z=11.0)
+H  region B | SS=E                   n= 141 rate 0.93 vs baseline 0.40 (z=12.7)
+H  region A | SS=E                   n= 141 rate 0.04 vs baseline 0.46 (z=10.1)
+H  region B | prevSS=E               n= 146 rate 0.74 vs baseline 0.40 (z=8.3)
+I  region B | SS=E                   n= 438 rate 0.96 vs baseline 0.48 (z=20.4)
+I  region A | SS=E                   n= 438 rate 0.02 vs baseline 0.50 (z=20.0)
+I  region A | SS=H                   n= 559 rate 0.89 vs baseline 0.50 (z=18.4)
+K  region B | SS=E                   n= 448 rate 0.93 vs baseline 0.35 (z=25.9)
+K  region A | SS=E                   n= 448 rate 0.04 vs baseline 0.60 (z=24.5)
+K  region B | prevSS=E               n= 418 rate 0.76 vs baseline 0.35 (z=17.9)
+L  region B | SS=E                   n= 548 rate 0.97 vs baseline 0.37 (z=29.0)
+L  region A | SS=E                   n= 548 rate 0.02 vs baseline 0.61 (z=28.2)
+L  region B | prevSS=E               n= 530 rate 0.86 vs baseline 0.37 (z=23.1)
+M  region B | SS=E                   n= 139 rate 0.97 vs baseline 0.40 (z=13.6)
+M  region A | SS=E                   n= 139 rate 0.01 vs baseline 0.57 (z=13.3)
+M  region A | prevSS=E               n= 117 rate 0.07 vs baseline 0.57 (z=11.0)
+N  region B | SS=E                   n= 197 rate 0.90 vs baseline 0.32 (z=17.6)
+N  region A | SS=E                   n= 197 rate 0.04 vs baseline 0.48 (z=12.5)
+N  region B | prevSS=E               n= 281 rate 0.62 vs baseline 0.32 (z=10.6)
+P  region A | SS=E                   n= 322 rate 0.01 vs baseline 0.43 (z=15.4)
+P  region B | SS=E                   n= 322 rate 0.96 vs baseline 0.54 (z=15.1)
+P  region A | prevSS=H               n= 245 rate 0.80 vs baseline 0.43 (z=11.6)
+Q  region B | SS=E                   n= 215 rate 0.98 vs baseline 0.34 (z=19.5)
+Q  region A | SS=E                   n= 215 rate 0.01 vs baseline 0.60 (z=17.6)
+Q  region B | nextSS=E               n= 229 rate 0.77 vs baseline 0.34 (z=13.7)
+R  region B | SS=E                   n= 263 rate 0.96 vs baseline 0.34 (z=21.2)
+R  region A | SS=E                   n= 263 rate 0.02 vs baseline 0.61 (z=19.6)
+R  region A | nextSS=E               n= 273 rate 0.18 vs baseline 0.61 (z=14.6)
+S  region B | SS=E                   n= 447 rate 0.92 vs baseline 0.48 (z=18.9)
+S  region A | SS=E                   n= 447 rate 0.03 vs baseline 0.47 (z=18.8)
+S  region A | prevSS=H               n= 491 rate 0.79 vs baseline 0.47 (z=14.3)
+T  region B | SS=E                   n= 491 rate 0.97 vs baseline 0.53 (z=19.2)
+T  region A | SS=E                   n= 491 rate 0.02 vs baseline 0.45 (z=19.0)
+T  region A | prevSS=H               n= 502 rate 0.78 vs baseline 0.45 (z=15.0)
+V  region B | SS=E                   n= 641 rate 0.99 vs baseline 0.55 (z=22.4)
+V  region A | SS=E                   n= 641 rate 0.01 vs baseline 0.44 (z=22.2)
+V  region A | SS=H                   n= 623 rate 0.87 vs baseline 0.44 (z=21.7)
+W  region B | SS=E                   n= 140 rate 0.93 vs baseline 0.42 (z=12.1)
+W  region A | SS=E                   n= 140 rate 0.05 vs baseline 0.54 (z=11.5)
+W  region A | SS=H                   n= 158 rate 0.91 vs baseline 0.54 (z=9.3)
+Y  region B | SS=E                   n= 356 rate 0.97 vs baseline 0.52 (z=17.0)
+Y  region A | SS=E                   n= 356 rate 0.01 vs baseline 0.42 (z=15.5)
+Y  region A | SS=H                   n= 306 rate 0.85 vs baseline 0.42 (z=15.4)
+total strong conditions: 403 (multiple tests -> expect some false positives; confirm on new data)
+replication: 402 of 403 strong conditions keep the SAME direction in both independent halves

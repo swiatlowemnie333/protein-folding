@@ -1,0 +1,56 @@
+unique proteins 74 residues 10756
+
+Gly n=810 (7.5%)
+d(i-1,i+1) CA-CA                   Gly 6.02±0.64 | rest 5.92±0.61
+virtual CA angle                   Gly 106.73±17.97 | rest 103.96±16.29
+burial (CA<10A)                    Gly 15.95±6.00 | rest 17.09±4.94
+phi>0 fraction: Gly 0.632 | rest 0.022
+SS H: Gly 0.398 | rest 0.580
+SS E: Gly 0.283 | rest 0.269
+SS C: Gly 0.320 | rest 0.151
+  Gly in H: n=322 phi>0 0.51  d2 mean 5.81 sd 0.53
+  Gly in E: n=229 phi>0 0.55  d2 mean 6.82 sd 0.30
+  Gly in C: n=259 phi>0 0.85  d2 mean 5.58 sd 0.18
+
+What precedes/follows Gly (enrichment vs background):
+prev M2.16(33) I2.05(93) E1.66(79) T1.56(84) P1.31(33) N1.23(54) | lowest G0.61 L0.57 W0.56 K0.49
+next H2.75(34) I1.87(85) Y1.76(51) V1.54(77) F1.35(40) E1.22(58) | lowest N0.64 G0.62 W0.56 D0.52
+Gly with Gly neighbour: 9.1% of Gly (expected 14.5%)
+
+Gly phi>0 rate by prev aa class and by neighbour-is-Gly:
+  prev small/polar       n=266 phi>0 0.62 | next n=192 phi>0 0.62
+  prev Pro               n= 33 phi>0 0.52 | next n= 21 phi>0 0.48
+  prev hydrophobic/arom  n=253 phi>0 0.69 | next n=328 phi>0 0.58
+  prev other             n=248 phi>0 0.60 | next n=261 phi>0 0.71
+  burial 0-20 n=614 phi>0 0.67
+  burial 20-26 n=123 phi>0 0.46
+  burial 26-32 n=63 phi>0 0.60
+  burial 32-99 n=10 phi>0 0.40
+tree depth 2 CV acc 0.691 baseline 0.632
+tree depth 3 CV acc 0.704 baseline 0.632
+tree depth 4 CV acc 0.753 baseline 0.632
+|--- nextSS <= 0.50
+|   |--- burial <= 10.50
+|   |   |--- prev_aa <= 4.50
+|   |   |   |--- class: True
+|   |   |--- prev_aa >  4.50
+|   |   |   |--- class: True
+|   |--- burial >  10.50
+|   |   |--- relpos <= 0.66
+|   |   |   |--- class: True
+|   |   |--- relpos >  0.66
+|   |   |   |--- class: False
+|--- nextSS >  0.50
+|   |--- burial <= 18.50
+|   |   |--- prevSS <= 0.50
+|   |   |   |--- class: True
+|   |   |--- prevSS >  0.50
+|   |   |   |--- class: True
+|   |--- burial >  18.50
+|   |   |--- next_aa <= 7.50
+|   |   |   |--- class: True
+|   |   |--- next_aa >  7.50
+|   |   |   |--- class: False
+
+Gly: SD d(i-1,i+1) 0.64 -> residual after tree 0.56 (R2 0.24)
+non-Gly: SD d(i-1,i+1) 0.61 -> residual after tree 0.45 (R2 0.46)
