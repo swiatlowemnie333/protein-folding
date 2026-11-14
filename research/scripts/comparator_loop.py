@@ -111,8 +111,11 @@ def curve(order_name):
     return out
 print('=== KRZYWA UCZENIA: blad na niewidzianych bialkach vs liczba bialek uczacych ===')
 print('bialek  reszt   |  losowy dobor: acc  logloss  |  aktywny dobor (najtrudniejsze): acc  logloss')
-cr=curve('random');ca_=curve('active')
-for a,b in zip(cr,ca_):print('%5d %7d   |   %.3f  %.3f               |   %.3f  %.3f'%(a[0],a[1],a[2],a[3],b[2],b[3]))
+import os
+cr=curve('random');ca_=curve('active') if not os.environ.get('NOACTIVE') else None
+for k,a in enumerate(cr):
+    b=ca_[k] if ca_ else (0,0,float('nan'),float('nan'))
+    print('%5d %7d   |   %.3f  %.3f               |   %.3f  %.3f'%(a[0],a[1],a[2],a[3],b[2],b[3]))
 print('\n=== POLOWANIE NA NIEUWZGLEDNIONE ZMIENNE (przyrost na niewidzianych, pelna pula) ===')
 order=[('self',['self']),('+ sasiedzi +-1',['nb1']),('+ sasiedzi +-2,3',['nb1','nb3']),('+ sasiedzi +-4..7 (periodycznosc helisy)',['nb1','nb3','nb7']),('+ pozycja w lancuchu',['nb1','nb3','nb7','pos']),('+ cechy globalne bialka (dlugosc, hydrofobowosc, ladunek)',['nb1','nb3','nb7','pos','glob'])]
 prev=None

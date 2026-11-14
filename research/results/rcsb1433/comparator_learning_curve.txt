@@ -1,0 +1,25 @@
+bialek uzytych: 1433 (po usunieciu >80% identycznych); wczytanie 10s
+kontrolny (niewidziany) zbior: 286 bialek; pula uczaca: 1147
+baza (najczestsza klasa) acc=0.472
+
+=== KRZYWA UCZENIA: blad na niewidzianych bialkach vs liczba bialek uczacych ===
+bialek  reszt   |  losowy dobor: acc  logloss  |  aktywny dobor (najtrudniejsze): acc  logloss
+    5     687   |   0.591  1.211               |   nan  nan
+   10    1559   |   0.592  1.085               |   nan  nan
+   20    3051   |   0.609  0.937               |   nan  nan
+   40    5922   |   0.623  0.851               |   nan  nan
+   80   12050   |   0.641  0.778               |   nan  nan
+  160   23523   |   0.644  0.766               |   nan  nan
+  320   47938   |   0.659  0.749               |   nan  nan
+  640   96099   |   0.665  0.736               |   nan  nan
+ 1147  170991   |   0.670  0.731               |   nan  nan
+
+=== POLOWANIE NA NIEUWZGLEDNIONE ZMIENNE (przyrost na niewidzianych, pelna pula) ===
+self                                                           acc=0.557 logloss=0.848 
++ sasiedzi +-1                                                 acc=0.618 logloss=0.789 (zmiana logloss -0.060)
++ sasiedzi +-2,3                                               acc=0.670 logloss=0.731 (zmiana logloss -0.058)
++ sasiedzi +-4..7 (periodycznosc helisy)                       acc=0.685 logloss=0.710 (zmiana logloss -0.021)
++ pozycja w lancuchu                                           acc=0.686 logloss=0.710 (zmiana logloss +0.000)
++ cechy globalne bialka (dlugosc, hydrofobowosc, ladunek)      acc=0.689 logloss=0.708 (zmiana logloss -0.002)
+
+czas: 65s

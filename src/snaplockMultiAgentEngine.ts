@@ -1361,11 +1361,11 @@ export function betaPairEnergy(sim: any, ss: string, scale = 1.0): number {
   }
   return scale * e;
 }
-// Moduł R: prior kątów szkieletu. Tabela wyliczona 14.11.2026 z 142 niepowtarzalnych białek (20 635 reszt):
+// Moduł R: prior kątów szkieletu. Tabela wyliczona 14.11.2026 z 1433 niepowtarzalnych białek RCSB (205 998 reszt):
 // rozkład regionów Ramachandrana [alfa, beta, lewoskrętny(phi>0), inne] dla każdego aminokwasu + 3 reguły sekwencyjne
-// (reszta przed Pro; Gly po Asn/Asp; Pro po Asp). Używa WYŁĄCZNIE sekwencji — nie struktury docelowej.
+// (reszta przed Pro; Gly po Asn/Asp; Pro po Asp; Pro przed Pro). Używa WYŁĄCZNIE sekwencji — nie struktury docelowej.
 // Energia = scale * Σ -ln p(region). Uwaga: SS z geometrii nie jest używane (unikamy koła w kółko).
-const RAMA_TABLE: any = {"base":{"A":[0.6503,0.3126,0.0218,0.0153],"C":[0.428,0.5297,0.0155,0.0268],"D":[0.5665,0.3281,0.0539,0.0515],"E":[0.6552,0.3093,0.0166,0.0188],"F":[0.4921,0.4559,0.0175,0.0344],"G":[0.2231,0.1723,0.5867,0.0179],"H":[0.4572,0.4026,0.0867,0.0534],"I":[0.5,0.4763,0.0084,0.0154],"K":[0.601,0.3471,0.0306,0.0212],"L":[0.6056,0.3712,0.0094,0.0138],"M":[0.5702,0.4031,0.0109,0.0157],"N":[0.4838,0.3197,0.1373,0.0593],"P":[0.4294,0.5424,0.0043,0.024],"Q":[0.6007,0.3441,0.0401,0.0151],"R":[0.6075,0.3426,0.0342,0.0157],"S":[0.4709,0.4755,0.0318,0.0218],"T":[0.4471,0.5342,0.0061,0.0126],"V":[0.4413,0.5468,0.0039,0.0081],"W":[0.5338,0.4239,0.0183,0.0239],"Y":[0.4182,0.5214,0.0396,0.0208]},"prePro":[0.1152,0.7455,0.0186,0.1207],"GlyAfterND":[0.2201,0.0951,0.6766,0.0082],"ProAfterD":[0.81,0.17,0.01,0.01]};
+const RAMA_TABLE: any = {"base":{"A":[0.6215,0.3492,0.0139,0.0154],"C":[0.4073,0.5426,0.023,0.0271],"D":[0.5283,0.376,0.057,0.0387],"E":[0.6354,0.3319,0.0216,0.011],"F":[0.4431,0.5215,0.0159,0.0195],"G":[0.2052,0.2129,0.5654,0.0165],"H":[0.4706,0.4558,0.0418,0.0318],"I":[0.4266,0.5654,0.001,0.0071],"K":[0.5673,0.3844,0.0338,0.0145],"L":[0.564,0.4177,0.0072,0.0112],"M":[0.5369,0.4335,0.0121,0.0174],"N":[0.4652,0.3595,0.1277,0.0476],"P":[0.4071,0.5748,0.0002,0.018],"Q":[0.6026,0.354,0.0272,0.0161],"R":[0.554,0.402,0.0286,0.0155],"S":[0.4803,0.4834,0.0233,0.013],"T":[0.4371,0.5513,0.0041,0.0075],"V":[0.3629,0.6293,0.0022,0.0057],"W":[0.461,0.5048,0.0142,0.02],"Y":[0.4208,0.541,0.0176,0.0207]},"prePro":[0.0856,0.7867,0.018,0.1097],"GlyAfterND":[0.1572,0.1259,0.7041,0.0128],"ProAfterD":[0.7782,0.2133,0.0008,0.0076],"ProBeforePro":[0.0414,0.9519,0.0034,0.0034]};
 const RAMA_ONE: Record<string, string> = { ALA:'A',ARG:'R',ASN:'N',ASP:'D',CYS:'C',GLN:'Q',GLU:'E',GLY:'G',HIS:'H',ILE:'I',LEU:'L',LYS:'K',MET:'M',PHE:'F',PRO:'P',SER:'S',THR:'T',TRP:'W',TYR:'Y',VAL:'V' };
 export function ramaRegionIndex(phi: number, psi: number): number {
   if (phi > 0) return 2;
@@ -1381,6 +1381,7 @@ export function ramaPriorEnergy(sim: any, scale = 1.0): number {
     if (a !== 'G' && a !== 'P' && q === 'P') dist = RAMA_TABLE.prePro;
     else if (a === 'G' && (p === 'N' || p === 'D')) dist = RAMA_TABLE.GlyAfterND;
     else if (a === 'P' && p === 'D') dist = RAMA_TABLE.ProAfterD;
+    else if (a === 'P' && q === 'P') dist = RAMA_TABLE.ProBeforePro;
     e -= Math.log(Math.max(0.005, dist[ramaRegionIndex(ag[i].phiDeg, ag[i].psiDeg)]));
   }
   return scale * e;
