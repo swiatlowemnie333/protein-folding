@@ -364,6 +364,7 @@ export interface MultiAgentSimulationOptions {
   burialScale?: number; // moduł H: zakopywanie (SASA × hydropatia)
   betaScale?: number; // moduł P: parowanie nici β (drabinki CA), 0 = wyłączony
   zipperFraction?: number; // moduł Z: ruch składający spinkę β (odsetek kroków MC)
+  ramaScale?: number; // moduł R: prior kątów szkieletu z tabeli warunkowej (sekwencja → region phi/psi), 0 = wyłączony
   betaSS?: string;    // przewidziana struktura drugorzędowa (H/E/C) – z GOR, na ślepo
   monteCarloSteps?: number;   // optional final Monte Carlo simulated annealing in (phi, psi) space (energy-only, blind-safe)
   secondaryStructurePredictor?: 'GOR' | 'LEGACY'; // GOR = learned from 691 PDB chains (Q3 62.6% vs 53.5% legacy); LEGACY = default
@@ -1310,7 +1311,7 @@ export function runMultiAgentFoldingToConvergence(
   }
 
   if ((options.monteCarloSteps ?? 0) > 0 && !options.enableTargetGuidedRefinement) {
-    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale, betaScale: options.betaScale, betaSS: options.betaSS, zipperFraction: options.zipperFraction });
+    annealTorsionsMonteCarlo(sim, { steps: options.monteCarloSteps, seed: options.randomSeed ?? 1, contacts: options.contactRestraints, contactWeight: options.contactWeight, burialScale: options.burialScale, betaScale: options.betaScale, betaSS: options.betaSS, zipperFraction: options.zipperFraction, ramaScale: options.ramaScale });
   }
   const exported = sim.exportFinalAllAtomAndValidate();
   return {
@@ -1338,7 +1339,9 @@ export interface AnnealOptions { steps?: number; tStart?: number; tEnd?: number;
   // Moduł P: parowanie nici β. 0 = wyłączony.
   betaScale?: number; betaSS?: string;
   // Moduł Z: ruch „zamek błyskawiczny nici” – odsetek kroków MC (0 = wyłączony).
-  zipperFraction?: number; }
+  zipperFraction?: number;
+  // Moduł R: energia = -ln p(region phi/psi | aminokwas, sąsiedzi). 0 = wyłączony.
+  ramaScale?: number; }
 // Energia zakopania: reszty o dużej, hydrofobowej powierzchni (SASA × Kyte-Doolittle) wolą być w środku (dużo sąsiadów CA w 10 Å).
 // Moduł P: energia parowania nici β. Nagradza „drabinki”: para CA(i)–CA(j) bliżej niż ~5,5 Å
 // razem z sąsiednią parą (i±1, j∓1 antyrównolegle albo i±1, j±1 równolegle). Waga wyższa dla reszt,
@@ -1355,6 +1358,30 @@ export function betaPairEnergy(sim: any, ss: string, scale = 1.0): number {
     const anti = s(d(i + 1, j - 1)) * s(d(i - 1, j + 1)), par = s(d(i + 1, j + 1)) * s(d(i - 1, j - 1));
     const lad = Math.max(anti, par) * sij; if (lad < 0.05) continue;
     e -= lad * w(i) * w(j);
+  }
+  return scale * e;
+}
+// Moduł R: prior kątów szkieletu. Tabela wyliczona 14.11.2026 z 142 niepowtarzalnych białek (20 635 reszt):
+// rozkład regionów Ramachandrana [alfa, beta, lewoskrętny(phi>0), inne] dla każdego aminokwasu + 3 reguły sekwencyjne
+// (reszta przed Pro; Gly po Asn/Asp; Pro po Asp). Używa WYŁĄCZNIE sekwencji — nie struktury docelowej.
+// Energia = scale * Σ -ln p(region). Uwaga: SS z geometrii nie jest używane (unikamy koła w kółko).
+const RAMA_TABLE: any = {"base":{"A":[0.6503,0.3126,0.0218,0.0153],"C":[0.428,0.5297,0.0155,0.0268],"D":[0.5665,0.3281,0.0539,0.0515],"E":[0.6552,0.3093,0.0166,0.0188],"F":[0.4921,0.4559,0.0175,0.0344],"G":[0.2231,0.1723,0.5867,0.0179],"H":[0.4572,0.4026,0.0867,0.0534],"I":[0.5,0.4763,0.0084,0.0154],"K":[0.601,0.3471,0.0306,0.0212],"L":[0.6056,0.3712,0.0094,0.0138],"M":[0.5702,0.4031,0.0109,0.0157],"N":[0.4838,0.3197,0.1373,0.0593],"P":[0.4294,0.5424,0.0043,0.024],"Q":[0.6007,0.3441,0.0401,0.0151],"R":[0.6075,0.3426,0.0342,0.0157],"S":[0.4709,0.4755,0.0318,0.0218],"T":[0.4471,0.5342,0.0061,0.0126],"V":[0.4413,0.5468,0.0039,0.0081],"W":[0.5338,0.4239,0.0183,0.0239],"Y":[0.4182,0.5214,0.0396,0.0208]},"prePro":[0.1152,0.7455,0.0186,0.1207],"GlyAfterND":[0.2201,0.0951,0.6766,0.0082],"ProAfterD":[0.81,0.17,0.01,0.01]};
+const RAMA_ONE: Record<string, string> = { ALA:'A',ARG:'R',ASN:'N',ASP:'D',CYS:'C',GLN:'Q',GLU:'E',GLY:'G',HIS:'H',ILE:'I',LEU:'L',LYS:'K',MET:'M',PHE:'F',PRO:'P',SER:'S',THR:'T',TRP:'W',TYR:'Y',VAL:'V' };
+export function ramaRegionIndex(phi: number, psi: number): number {
+  if (phi > 0) return 2;
+  if (phi > -160 && phi < -20 && psi > -120 && psi < 50) return 0;
+  if (phi < -45 && (psi >= 90 || psi <= -150)) return 1;
+  return 3;
+}
+export function ramaPriorEnergy(sim: any, scale = 1.0): number {
+  const ag = sim.agents, n = ag.length; let e = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const a = RAMA_ONE[ag[i].profile.code3] ?? 'A', p = RAMA_ONE[ag[i - 1].profile.code3] ?? 'A', q = RAMA_ONE[ag[i + 1].profile.code3] ?? 'A';
+    let dist: number[] = RAMA_TABLE.base[a] ?? RAMA_TABLE.base['A'];
+    if (a !== 'G' && a !== 'P' && q === 'P') dist = RAMA_TABLE.prePro;
+    else if (a === 'G' && (p === 'N' || p === 'D')) dist = RAMA_TABLE.GlyAfterND;
+    else if (a === 'P' && p === 'D') dist = RAMA_TABLE.ProAfterD;
+    e -= Math.log(Math.max(0.005, dist[ramaRegionIndex(ag[i].phiDeg, ag[i].psiDeg)]));
   }
   return scale * e;
 }
@@ -1381,8 +1408,8 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const steps = opts.steps ?? 20000, t0 = opts.tStart ?? 6.0, t1 = opts.tEnd ?? 0.2;
   let a = ((opts.seed ?? 1) >>> 0) + 0x9e3779b9;
   const rnd = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '', zf = opts.zipperFraction ?? 0;
-  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0); };
+  const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '', zf = opts.zipperFraction ?? 0, rs = opts.ramaScale ?? 0;
+  const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0) + (rs ? ramaPriorEnergy(sim, rs) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
   const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
   const n = sim.agents.length;
