@@ -1,0 +1,21 @@
+
+==== Bialko G B1 (1PGA, bb-a-bb) | n=56 | GOR E-reszt=13 | nat. kontaktow dalekich(|i-j|>=20)=38 ====
+SS: CCCCEECCCCCCCCCCCHHHHHHHHHHHHHHEECCCCCCCCEEEECCCCCEEEEEC
+cfg   RMSD(sr+/-sd)   best    TM      odzysk kontaktow dalekich |i-j|>=20
+A     12.14+/-2.29    9.65   0.081   9%  | lokalny blad d(i-1,i+1): wszystkie 0.650 A, Gly 1.304 A
+AK    11.81+/-1.44    9.23   0.085   7%  | lokalny blad d(i-1,i+1): wszystkie 0.662 A, Gly 1.131 A
+ACPZ  10.22+/-1.22    7.36   0.106   19%  | lokalny blad d(i-1,i+1): wszystkie 0.797 A, Gly 1.066 A
+ACPZK 10.48+/-0.72    9.53   0.116   23%  | lokalny blad d(i-1,i+1): wszystkie 0.759 A, Gly 1.118 A
+ACPZRK 9.98+/-1.07    8.11   0.132   17%  | lokalny blad d(i-1,i+1): wszystkie 0.753 A, Gly 1.077 A
+
+==== Engrailed (1ENH, 3x alfa, kontrola) | n=54 | GOR E-reszt=0 | nat. kontaktow dalekich(|i-j|>=20)=10 ====
+SS: CCCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+cfg   RMSD(sr+/-sd)   best    TM      odzysk kontaktow dalekich |i-j|>=20
+A     10.82+/-2.86    6.44   0.102   3%  | lokalny blad d(i-1,i+1): wszystkie 0.513 A, Gly 0.678 A
+AK    10.60+/-1.54    7.30   0.109   13%  | lokalny blad d(i-1,i+1): wszystkie 0.535 A, Gly 0.564 A
+ACPZ  9.75+/-1.01    7.88   0.123   6%  | lokalny blad d(i-1,i+1): wszystkie 0.699 A, Gly 0.924 A
+ACPZK 7.90+/-1.63    5.83   0.178   9%  | lokalny blad d(i-1,i+1): wszystkie 0.627 A, Gly 0.685 A
+ACPZRK 9.73+/-1.33    6.15   0.141   6%  | lokalny blad d(i-1,i+1): wszystkie 0.624 A, Gly 0.373 A
+
+[gotowe]
+done

@@ -205,6 +205,17 @@ export class ResidueAgent {
     motif: 'HELIX' | 'SHEET' | 'TURN' | 'COIL',
     db: AminoAcidPhysicochemicalData
   ): [number, number] {
+    if (ANGLE_CAL) {
+      // dane 1433 białek: helisa (-65,-38), kartka (-113,137), PPII/Pro (-65,145), zwrot Gly (86,2), zwrot nie-Gly (-62,-28)
+      if (db.code3 === 'PRO') return motif === 'HELIX' ? [-64.0, -37.0] : [-65.0, 145.0];
+      if (motif === 'HELIX') return [-65.0, -38.0];
+      if (motif === 'SHEET') return [-113.0, 137.0];
+      if (motif === 'TURN') return db.chirality === 'Brak' ? [86.0, 2.0] : [-62.0, -28.0];
+      const pf = db.ramachandranPref.toLowerCase();
+      if (pf.includes('helisa')) return [-65.0, -38.0];
+      if (pf.includes('kartka')) return [-113.0, 137.0];
+      return [-68.0, 130.0];
+    }
     if (db.code3 === 'PRO') {
       return motif === 'HELIX' ? [-61.5, -43.0] : [-63.0, 142.0];
     }
@@ -1253,6 +1264,9 @@ export interface MultiAgentFullRunReport {
  * Executes a complete pure-math in-memory Multi-Agent Cotranslational Soft SnapLock +
  * Post-Ribosomal Soap-Bubble Torsional Gradient Descent run (zero external APIs).
  */
+// Moduł K (kalibracja kątów): stałe kątowe z mediany 1433 białek RCSB (research/results/opiekun). Domyślnie wyłączony.
+let ANGLE_CAL = false;
+export function setAngleCal(on: boolean) { ANGLE_CAL = on; }
 export function runMultiAgentFoldingToConvergence(
   options: MultiAgentSimulationOptions,
   postReleaseMaxFrames = 95,
@@ -1412,7 +1426,7 @@ export function annealTorsionsMonteCarlo(sim: any, opts: AnnealOptions = {}) {
   const cts = opts.contacts ?? [], cw = opts.contactWeight ?? 2.0, cdm = opts.contactDMax ?? 8.0, bs = opts.burialScale ?? 0, bts = opts.betaScale ?? 0, bss = opts.betaSS ?? '', zf = opts.zipperFraction ?? 0, rs = opts.ramaScale ?? 0;
   const energy = () => { const e = sim.evaluateAgentForcesAndTorsionalJacobian(); return e.soapBubbleEnergy + e.vdwEnergy + e.clampEnergy + e.softSnapEnergy + (cts.length ? contactRestraintEnergy(sim, cts, cw, cdm) : 0) + (bs ? burialEnergy(sim, bs) : 0) + (bts ? betaPairEnergy(sim, bss, bts) : 0) + (rs ? ramaPriorEnergy(sim, rs) : 0); };
   // Basins Ramachandrana (alfa-helisa, beta, PPII, lewoskrętna dla Gly)
-  const basins: [number, number][] = [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
+  const basins: [number, number][] = ANGLE_CAL ? [[-65, -38], [-113, 137], [-65, 145], [-62, -28], [85, 2]] : [[-63, -42], [-120, 130], [-75, 145], [-80, 0], [60, 45]];
   const n = sim.agents.length;
   sim.rebuildBackboneNeRF();
   let E = energy(), bestE = E;

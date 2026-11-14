@@ -542,7 +542,7 @@ export const SNAPLOCK_22_DATABASE: AminoAcidPhysicochemicalData[] = [
     hydropathyKyte: 1.5,
     hydrophilicityHopp: -1.0,
     solubility: 'Niska',
-    chargePH74: -0.7,
+    chargePH74: -0.99, // poprawka opiekuna reguł 14.11.2026: Henderson-Hasselbalch dla pKr 5.2 przy pH 7.4 (było -0.7)
     sidechainIonization: true,
     pK1_COOH: 1.90,
     pK2_NH3: 9.50,
