@@ -1,0 +1,26 @@
+
+==== Bialko G B1 (1PGA, bb-a-bb) | n=56 | GOR E-reszt=13 | nat. kontaktow dalekich(|i-j|>=20)=38 ====
+SS: CCCCEECCCCCCCCCCCHHHHHHHHHHHHHHEECCCCCCCCEEEECCCCCEEEEEC
+cfg   RMSD(sr+/-sd)   best    TM      odzysk kontaktow dalekich |i-j|>=20
+A     12.14+/-2.29    9.65   0.081   9%  | lokalny blad d(i-1,i+1): wszystkie 0.650 A, Gly 1.304 A
+AR    9.95+/-0.58    9.00   0.118   16%  | lokalny blad d(i-1,i+1): wszystkie 0.745 A, Gly 1.156 A
+AC    11.10+/-1.55    7.39   0.102   8%  | lokalny blad d(i-1,i+1): wszystkie 0.698 A, Gly 1.252 A
+ACR   10.29+/-1.12    8.03   0.116   19%  | lokalny blad d(i-1,i+1): wszystkie 0.748 A, Gly 1.124 A
+ACP   10.46+/-1.28    7.74   0.114   14%  | lokalny blad d(i-1,i+1): wszystkie 0.789 A, Gly 1.077 A
+ACPR  10.32+/-1.26    7.74   0.121   21%  | lokalny blad d(i-1,i+1): wszystkie 0.761 A, Gly 1.250 A
+ACPZ  10.22+/-1.22    7.36   0.106   19%  | lokalny blad d(i-1,i+1): wszystkie 0.797 A, Gly 1.066 A
+ACPZR 10.14+/-1.29    7.29   0.124   25%  | lokalny blad d(i-1,i+1): wszystkie 0.772 A, Gly 1.106 A
+
+==== Engrailed (1ENH, 3x alfa, kontrola) | n=54 | GOR E-reszt=0 | nat. kontaktow dalekich(|i-j|>=20)=10 ====
+SS: CCCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+cfg   RMSD(sr+/-sd)   best    TM      odzysk kontaktow dalekich |i-j|>=20
+A     10.82+/-2.86    6.44   0.102   3%  | lokalny blad d(i-1,i+1): wszystkie 0.513 A, Gly 0.678 A
+AR    8.85+/-1.74    5.70   0.158   8%  | lokalny blad d(i-1,i+1): wszystkie 0.628 A, Gly 0.545 A
+AC    10.81+/-2.07    8.26   0.091   4%  | lokalny blad d(i-1,i+1): wszystkie 0.506 A, Gly 0.834 A
+ACR   9.71+/-1.37    6.52   0.138   6%  | lokalny blad d(i-1,i+1): wszystkie 0.601 A, Gly 0.638 A
+ACP   9.01+/-1.33    7.04   0.148   8%  | lokalny blad d(i-1,i+1): wszystkie 0.587 A, Gly 0.570 A
+ACPR  9.30+/-1.21    6.48   0.140   12%  | lokalny blad d(i-1,i+1): wszystkie 0.607 A, Gly 0.811 A
+ACPZ  9.75+/-1.01    7.88   0.123   6%  | lokalny blad d(i-1,i+1): wszystkie 0.699 A, Gly 0.924 A
+ACPZR 9.05+/-2.09    5.36   0.147   16%  | lokalny blad d(i-1,i+1): wszystkie 0.665 A, Gly 0.608 A
+
+[gotowe]
