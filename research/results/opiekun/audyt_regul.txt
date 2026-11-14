@@ -1,0 +1,16 @@
+[PODEJRZANE] D pI=2.77 vs z pK=2.97
+[PODEJRZANE] U pI=5.35 vs z pK=3.55
+[PODEJRZANE] U ładunek pH7.4=-0.7 vs Henderson-Hasselbalch=-0.99 (pKr=5.2)
+[PODEJRZANE] O pI=6.8 vs z pK=5.65
+[PODEJRZANE] Y "Amfipatyczna" <- opis nie jest klasą Ramachandrana (do przepisania na dane)
+[PODEJRZANE] W "Helisa alfa" <- DANE: więcej beta niż alfa
+[PODEJRZANE] H "Centra aktywne" <- opis nie jest klasą Ramachandrana (do przepisania na dane)
+[OK] bazen alfa (nie-Gly) -63,-42: silnik (-63, -42), pik danych (-62,-42) n=87274, odległość 1°
+[OK] bazen beta (nie-Gly) -120,130: silnik (-120, 130), pik danych (-118,128) n=76670, odległość 4°
+[OK] bazen PPII (nie-Gly) -75,145: silnik (-75, 145), pik danych (-62,138) n=28723, odległość 15°
+[PODEJRZANE] bazen baz (-80,0) nie-Gly: silnik (-80, 0), pik danych (-62,-28) n=27719, odległość 33°
+[PODEJRZANE] bazen Gly lewy baz 60,45: silnik (60, 45), pik danych (82,2) n=5009, odległość 48°
+[OK] bazen Gly prawy alfa: silnik (-63, -42), pik danych (-62,-42) n=2822, odległość 1°
+[PODEJRZANE] bazen Gly beta: silnik (-120, 130), pik danych (-78,172) n=2130, odległość 60°
+[OK] bazen Pro (-65,145): silnik (-75, 145), pik danych (-62,148) n=5295, odległość 13°
+RAZEM 10

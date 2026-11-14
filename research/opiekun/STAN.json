@@ -1,0 +1,24 @@
+{
+  "opiekun_regul": "dziennik stanu - czytaj PRZED pracą nad tabelami, aktualizuj PO pracy",
+  "ostatnia_aktualizacja": "2026-11-14 19:00",
+  "gdzie_stanelismy": "Audyt tabeli 22 aminokwasów (SNAPLOCK_22_DATABASE) i bazenów kątów silnika zrobiony po raz pierwszy skryptem research/scripts/rules_keeper.py. Wbudowany audyt w aplikacji (SnaplockParameterAuditView.tsx) NIE jest pomiarem: ma wpisane na sztywno liczby (32 przypisania zeroE/zeroRmsd), więc nie liczy się jako weryfikacja.",
+  "bialka_ostatnio": {
+    "zbior_danych": "1433 białka RCSB (backbone), ~206 tys. reszt, /tmp/big/rows.pkl (na Twoim PC: bialka_backbone.zip)",
+    "testowe_modele": ["1PGA (56 aa, beta)", "1ENH (54 aa, helisy)"],
+    "najlepszy_uczciwy_wynik_1PGA": "7.29 A (konfiguracja LEGACY bez kontaktów MJ), błąd globalny: pętla 43-50"
+  },
+  "sprawdzone_OK_zgodne_z_literatura": ["masa (22)", "Kyte-Doolittle (20 standardowych)", "Hopp-Woods (20)", "SASA (20)", "objętość vdW (20 std)", "pK1/pK2 spójne z pI dla 17 aa", "bazen alfa (-63,-42)", "bazen beta (-120,130)", "bazen PPII/Pro", "Gly prawy alfa"],
+  "podejrzane_do_naprawy": [
+    {"co": "Gly lewy bazen (60,45)", "dane": "pik (82,2) wg 1433 białek", "odleglosc": "48 st", "nastepny_krok": "wariant silnika z (82,2) osobno, porównać RMSD 1PGA/1ENH"},
+    {"co": "Bazen (-80,0) dla nie-Gly", "dane": "pik (-62,-28)", "odleglosc": "33 st", "nastepny_krok": "test wariantu"},
+    {"co": "Gly beta bazen (-120,130)", "dane": "pik Gly w beta to (-78,172)", "odleglosc": "60 st", "nastepny_krok": "osobny bazen dla Gly w beta"},
+    {"co": "SEC ładunek pH7.4 = -0.7", "dane": "z pKr 5.2 wychodzi -0.99", "nastepny_krok": "poprawić tabelę"},
+    {"co": "SEC pI 5.35 / PYL pI 6.8", "dane": "niestandardowe aa, brak źródła w repo", "nastepny_krok": "znaleźć źródło albo oznaczyć jako szacunek"},
+    {"co": "Kolumna ramachandranPref: TRP='Helisa alfa'", "dane": "w danych beta 50.5% > alfa 46.1%", "nastepny_krok": "przepisać kolumnę z danych dla wszystkich 20 aa"},
+    {"co": "Kolumna ramachandranPref: TYR='Amfipatyczna', HIS='Centra aktywne'", "dane": "to nie są klasy Ramachandrana", "nastepny_krok": "przepisać z danych"}
+  ],
+  "falszywe_alarmy": ["ASP pI 2.77: wartość literaturowa używa pKr 3.65, tabela ma 3.86 - do ujednolicenia, nie błąd"],
+  "jeszcze_niesprawdzone": ["rotamery (kolumna tekstowa)", "elastyczność łańcucha", "kąty/długości wiązań w snaplockPhysicallyConstrainedEngine.ts", "promienie vdW atomów w silniku (poza objętościami)", "stałe energetyczne MJ", "Gly phi=±75-78 (linie ~1775-1781)"],
+  "nastepny_krok_1": "Wariant silnika z poprawionym bazenem Gly (82,2) - zmierzyć na 10 ziarnach",
+  "wizja_UI": "Interaktywna wróżka-przewodniczka latająca po ekranie (oryginalna postać), która zna STAN.json i oprowadza po zakładkach"
+}
