@@ -70,3 +70,26 @@ Same targets, same Kabsch / TM-score code (`tests/esmfold_benchmark.ts`, raw PDB
 - ESMFold confidence (pLDDT) tracks real error: the one miss (crambin) is flagged by pLDDT ~50.
 - Isolated insulin chains score low on TM: in vivo A and B fold together via disulfide bonds; single-chain input lacks the partner.
 - Conclusion: SNAPLOCK's value is the **validation/visualisation layer**; prediction should come from established models.
+
+
+---
+
+## Folding from sequence — with ESMFold / AlphaFold
+
+SNAPLOCK does **not** fold proteins de-novo (see the honest validation harness above). For real structure prediction it calls established models — **ESMFold** (public API) and **AlphaFold DB**. Run through the same Kabsch / TM-score harness, ESMFold reaches near-atomic accuracy (lysozyme 1LYZ: Cα RMSD **0.55 Å**, TM-score **0.98**).
+
+So *"sequence in → folded structure out, no lab"* already works — through these models. SNAPLOCK's own contribution is the rigorous validation layer and the mutation diagnostics on top.
+
+### The app
+
+![3D backbone and all-atom microscope](screenshots/01-3d-microscope.jpg)
+
+*Constructor & microscope: 3D backbone, all-atom builder, VdW shells, S-S bridges.*
+
+![Mutation diagnostics: wild-type vs patient variant](screenshots/02-mutation-diagnostics.jpg)
+
+*Mutation diagnostics (healthy vs disease): wild-type vs I44A variant — ΔΔG and the lost Leu8–Ile44–Val70 hydrophobic contact mark a druggable target.*
+
+![Held-out de-novo validation and ablation](screenshots/03-validation-heldout.jpg)
+
+*Card G: strict de-novo / held-out mode (no reference used during folding) with the M1–M5 ablation — reported honestly.*
